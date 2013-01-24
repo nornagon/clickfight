@@ -39,12 +39,34 @@ class Line
 
 lines = [
   new Line 10, 10, 100, 100
-  new Line 540, 360, 80, 0
-  new Line 540, 440, 80, 0
-  new Line 540, 440, 0, 80
-  new Line 540, 360, 0, 80
-  new Line 620, 360, 0, 80
 ]
+
+window.ctx = ctx
+
+FONT = 'bold 14px helvetica'
+class Char
+  constructor: (@x, @y, @c, @life=2000) ->
+    ctx.font = FONT
+    @width = ctx.measureText(@c).width
+  update: (dt) ->
+    @life -= dt
+    if @life <= 0
+      @dead = yes
+  draw: ->
+    fadeIn = if (2000-@life) < 200
+      (2000-@life) / 200
+    else
+      1
+    fadeOut = if @life < 200
+      @life/200
+    else
+      1
+    ctx.font = FONT
+    ctx.fillStyle = 'black'
+    ctx.globalAlpha = Math.min fadeOut, fadeIn
+    ctx.fillText @c, @x, @y + (1-fadeIn)*20
+    ctx.globalAlpha = 1
+chars = []
 
 draw = ->
   ctx.clearRect 0, 0, canvas.width, canvas.height
@@ -54,6 +76,10 @@ draw = ->
     ctx.moveTo l.x, l.y
     ctx.lineTo l.x+l.dx, l.y+l.dy
     ctx.stroke()
+
+  for c in chars
+    c.draw()
+
 
   ctx.save()
   ctx.translate playerX, playerY
@@ -149,6 +175,9 @@ update = (dt) ->
     if attackTime >= AttackMs
       attacking = false
 
+  c.update dt for c in chars
+  chars = (c for c in chars when not c.dead)
+
 
 oldT = 0
 frame = (t) ->
@@ -162,12 +191,39 @@ mousemove = (e) ->
   offX += e.webkitMovementX
   offY += e.webkitMovementY
 
+inp = document.body.appendChild(document.createElement('input'))
+inp.style.opacity = '0.01'
 mousedown = (e) ->
   return if attacking
   attacking = true
   attackTime = 0
 
 mouseup = (e) ->
+
+whereWasILastSpeaking = null
+lastAdvance = 0
+MOVE_THRESHOLD = 40
+dist = ({x:x0,y:y0}, {x:x1,y:y1}) -> dx = x0-x1; dy = y0-y1; Math.sqrt dx*dx + dy*dy
+sayChars = (cs) ->
+  moved = (!whereWasILastSpeaking or dist({x:playerX,y:playerY}, whereWasILastSpeaking) > MOVE_THRESHOLD)
+  if moved
+    whereWasILastSpeaking = {x:playerX, y:playerY}
+
+  if chars.length is 0 or moved
+    lastAdvance = 0
+
+  x = whereWasILastSpeaking.x - 40 + lastAdvance
+  y = whereWasILastSpeaking.y - 40
+  chars.push c = new Char x, y, cs
+  lastAdvance += c.width
+
+inp.addEventListener 'input', (e) ->
+  sayChars inp.value
+  inp.value = ''
+inp.addEventListener 'keydown', (e) ->
+  if e.which is 8
+    c = chars.pop()
+    lastAdvance -= c.width if c
 
 canvas.addEventListener 'click', lockPointer = ->
   canvas.webkitRequestPointerLock()
@@ -177,9 +233,11 @@ document.addEventListener 'webkitpointerlockchange', ->
     canvas.addEventListener 'mousemove', mousemove
     canvas.addEventListener 'mousedown', mousedown
     canvas.addEventListener 'mouseup', mouseup
+    inp.focus()
     canvas.removeEventListener 'click', lockPointer
   else
     canvas.removeEventListener 'mousemove', mousemove
     canvas.removeEventListener 'mousedown', mousedown
     canvas.removeEventListener 'mouseup', mouseup
+    inp.blur()
     canvas.addEventListener 'click', lockPointer
