@@ -17,7 +17,7 @@ circle = (x, y, radius) ->
     ctx.lineWidth = 2
 
     ctx.beginPath()
-    ctx.arc @c.x, @c.y, @r, 0, 2*Math.PI, false
+    ctx.arc @tc.x, @tc.y, @r, 0, 2*Math.PI, false
     ctx.fill()
     ctx.stroke()
 
@@ -108,7 +108,8 @@ poly = (x, y, verts) ->
   p =
     verts: verts
     update: ->
-      updatePoly this, v(@owner.tpos.x + x, @owner.tpos.y + y), @owner.trot
+      offs = v.rotate v(x, y), @owner.trot
+      updatePoly this, v(@owner.tpos.x + offs.x, @owner.tpos.y + offs.y), @owner.trot
     draw: ->
       ctx.fillStyle = @owner.color or 'green'
       ctx.strokeStyle = 'black'
@@ -118,9 +119,9 @@ poly = (x, y, verts) ->
 
       len = @verts.length
 
-      ctx.moveTo @verts[len - 2] + x, @verts[len - 1] + y
+      ctx.moveTo @tVerts[len - 2], @tVerts[len - 1]
       for i in [0...len] by 2
-        ctx.lineTo @verts[i] + x, @verts[i+1] + y
+        ctx.lineTo @tVerts[i], @tVerts[i+1]
       ctx.fill()
       ctx.stroke()
     type: 'poly'
