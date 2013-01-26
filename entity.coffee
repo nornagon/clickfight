@@ -86,25 +86,28 @@ class Entity
       nextEventID = null
 
   every: (ms, fn) ->
-    @timers[@nextTimerID++] =
+    @timers[id = @nextTimerID++] =
       t: 0
       time: ms
       fn: fn
       repeat: yes
+    id
 
   after: (ms, fn) ->
-    @timers[@nextTimerID++] =
+    @timers[id = @nextTimerID++] =
       t: 0
       time: ms
       fn: fn
       repeat: no
+    id
 
   afterRandom: (minms, maxms, fn) ->
-    @timers[@nextTimerID++] =
+    @timers[id = @nextTimerID++] =
       t: 0
       time: Math.floor(Math.random()*(maxms-minms)+minms)
       fn: fn
       repeat: no
+    id
 
   cancelTimer: (id) ->
     delete @timers[id]
