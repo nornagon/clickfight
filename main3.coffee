@@ -33,8 +33,13 @@ do ->
   for i,p of players
     do (p) ->
       player = room.addEntity()
+      player.x = p.x
+      player.y = p.y
+      player.on 'update', ->
+        @x = p.x
+        @y = p.y
+
       player.on 'draw', ->
-        p = players.mouse
         ctx.save()
 
         ctx.translate p.x, p.y
@@ -54,11 +59,10 @@ do ->
 
         ctx.restore()
 
-
       player.every 500, ->
         e = room.addEntity()
-        e.x = players.mouse.x
-        e.y = players.mouse.y
+        e.x = @x
+        e.y = @y
         e.draw = ->
           ctx.fillStyle = 'red'
           ctx.fillRect @x, @y, 20, 20

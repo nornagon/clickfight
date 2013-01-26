@@ -42,7 +42,10 @@ class Entity
     @children = (c for c in @children when not c.dead)
 
   draw: ->
-    @trigger 'draw'
+    if @handlers['always']?.draw? or @handlers[@currentPhase()]?.draw?
+      @trigger 'draw'
+    else
+      s.draw() for s in @shapes
 
   addShape: (s) ->
     s.owner = @
@@ -50,7 +53,7 @@ class Entity
   trigger: (event, args...) ->
     for handler in @handlers['always']?[event] ? []
       handler.call @, args...
-    for handler in @handlers[@parent.currentPhase]?[event] ? []
+    for handler in @handlers[@currentPhase()]?[event] ? []
       handler.call @, args...
     return
 
@@ -95,10 +98,14 @@ class Entity
   cancelTimer: (id) ->
     delete @timers[id]
 
+  currentPhase: ->
+    return @currentPhase_ if @currentPhase_
+    @parent.currentPhase()
+
   enterPhase: (phase) ->
     @forAll (e) ->
       e.trigger 'exit'
-    @currentPhase = phase
+    @currentPhase_ = phase
     @forAll (e) ->
       e.trigger 'enter'
 
