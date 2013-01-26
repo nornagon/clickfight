@@ -37,6 +37,7 @@ do ->
       player = room.addEntity()
       player.x = p.x
       player.y = p.y
+      player.addShape circle 0, 0, 10
       player.on 'update', ->
         @x = p.x
         @y = p.y
@@ -60,6 +61,8 @@ do ->
         ctx.stroke()
 
         ctx.restore()
+
+      room.players.push player
 
   boss room
 
