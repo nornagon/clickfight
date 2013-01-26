@@ -2,8 +2,8 @@
 ## four giant arms. It also possesses healing power and lightning attacks
 
 boss = (room) ->
-  head = room.addEntity()
-  head.radius = 75
+  head = room.addEntity 'head'
+  head.radius = 160
   head.x = room.width/2
   head.y = room.height/2
 
@@ -12,23 +12,28 @@ boss = (room) ->
   ## ArmSlam - a phase where Crux slams the ground under its four giant arms
   ## while defending itself with an electric shell
 
+  
   head.phase('ArmSlam').on 'draw', ->
     ctx.beginPath()
-    ctx.arc @x, @y, @radius, 0, Math.PI*2
+    ctx.arc 0, 0, @radius, 0, Math.PI*2
     ctx.fillStyle = 'red'
     ctx.fill()
     ctx.strokeStyle = 'black'
     ctx.lineWidth = 2
     ctx.stroke()
-
+  
+  
   makeArm = (angle) ->
-    a = head.addEntity()
-    w = 500
-    h = 30
+    a = head.addEntity 'arm'
+    w = 700
+    h = 100
+    a.x = 0
+    a.y = 0#-h/2
     a.addShape rect(0, -h/2, w, h)
-    a.rot = angle
+    a.angle = angle
 
     a.phase('ArmSlam').phaseTimer { interval: [3000,8000], initial: [5000,8000] }, (again) ->
+      
       @telegraphing = true
       play 'slam.wav'
       @after 250, ->
@@ -71,7 +76,7 @@ boss = (room) ->
         a.destroy()
 
   head.phase('ArmSlam').on 'update', ->
-    head.rot += Math.PI/20 * dt/1000
+    head.angle += Math.PI/20 * dt/1000
 
     # pulse
     head.onCollision 'player', ->
@@ -100,7 +105,7 @@ boss = (room) ->
 
   head.phase('ArmHeal').on 'draw', ->
     ctx.beginPath()
-    ctx.arc @x, @y, @radius, 0, Math.PI*2
+    ctx.arc 0, 0, @radius, 0, Math.PI*2
     ctx.fillStyle = 'purple'
     ctx.fill()
     ctx.strokeStyle = 'black'
@@ -162,3 +167,5 @@ boss = (room) ->
   
   room.enterPhase 'ArmSlam'
 
+
+# while true; do curl -s http://sharejs.org/doc/code:1q6nt3i > boss-temp.coffee && mv boss-temp.coffee boss.coffee; sleep 1; done

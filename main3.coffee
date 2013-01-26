@@ -2,7 +2,7 @@ canvas = document.getElementsByTagName('canvas')[0]
 canvas.width = 1024
 canvas.height = 768
 ctx = canvas.getContext '2d'
-maxSpeed = 900 # px/s
+maxSpeed = 300 # px/s
 
 #dt = 16
 
@@ -29,7 +29,7 @@ room.tpos = v.zero
 room.trot = v.forangle 0
 room.width = canvas.width
 room.height = canvas.height
-
+room.players = []
 
 do ->
   for i,p of players
@@ -89,7 +89,8 @@ draw = ->
 
     ctx.restore()
   ###
-  room.forAll (e) -> e.draw()
+  room.draw()
+  #room.forAll (e) -> e.draw()
 
 #into.deadZoneLeftStick = 7849.0/32767.0;
 #into.deadZoneRightStick = 8689/32767.0;
@@ -159,3 +160,6 @@ document.addEventListener 'webkitpointerlockchange', ->
     canvas.removeEventListener 'mousedown', mousedown
     canvas.removeEventListener 'mouseup', mouseup
     canvas.addEventListener 'click', lockPointer
+
+play = ->
+

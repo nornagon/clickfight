@@ -16,7 +16,7 @@ circle = (x, y, radius) ->
     ctx.lineWidth = 2
 
     ctx.beginPath()
-    ctx.arc @tc.x, @tc.y, @r, 0, 2*Math.PI, false
+    ctx.arc @c.x, @c.y, @r, 0, 2*Math.PI, false
     ctx.fill()
     ctx.stroke()
 
@@ -115,12 +115,11 @@ poly = (x, y, verts) ->
 
       ctx.beginPath()
 
-      verts = @tVerts
-      len = @length
+      len = @verts.length
 
-      ctx.moveTo verts[len - 2], verts[len - 1]
+      ctx.moveTo @verts[len - 2] + x, @verts[len - 1] + y
       for i in [0...len] by 2
-        ctx.lineTo verts[i], verts[i+1]
+        ctx.lineTo @verts[i] + x, @verts[i+1] + y
       ctx.fill()
       ctx.stroke()
 

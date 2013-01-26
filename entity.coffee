@@ -44,10 +44,18 @@ class Entity
     @children = (c for c in @children when not c.dead)
 
   draw: ->
+    ctx.save()
+    ctx.translate @x, @y
+    ctx.rotate @angle
+
     if @handlers['always']?.draw?.length or @handlers[@currentPhase()]?.draw?.length
       @trigger 'draw'
     else
       s.draw() for s in @shapes
+
+    e.draw() for e in @children
+
+    ctx.restore()
 
   addShape: (s) ->
     s.owner = @
