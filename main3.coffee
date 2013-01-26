@@ -141,16 +141,20 @@ update = ->
     dx = if Math.abs(c.axes[0]) > dead then c.axes[0] else 0
     dy = if Math.abs(c.axes[1]) > dead then c.axes[1] else 0
 
+    p = players[i+2]
+
+    if c.buttons[0] and !p.prevButtonState
+      p.attack()
+
+    p.prevButtonState = c.buttons[0]
+
     if dx or dy
       angle = Math.atan2 dy, dx
       dist = dx * dx + dy * dy
 
-      p = players[i+2]
       if p
         p.dx = 20 * dist * Math.cos angle
         p.dy = 20 * dist * Math.sin angle
-
-
 
   for id, p of players
     if p.frozen

@@ -1,7 +1,8 @@
 ## Crux, a cross shaped boss who descends on a city, slamming it with its
-## four giant arms. It also possesses healing power and lightning attacks
+## four giant arms. It also regenerates its limbs and uses lightning attacks
 
 boss = (room) ->
+  # TODO: Add a bunch of ruins so that movement is hindered
   head = room.addEntity 'head'
   head.radius = 160
   head.x = room.width/2
@@ -16,8 +17,9 @@ boss = (room) ->
     a.y = 0#-h/2
     a.addShape rect(h/2, -h/2, w, h)
     a.angle = angle
+    a.hp = 10
 
-    a.phase('ArmSlam').phaseTimer { interval: [1500,4000], initial: [5000,8000] }, (again) ->
+    a.phase('ArmSlam').phaseTimer { interval: [1000,3000], initial: [3000,5000] }, (again) ->
       @telegraphing = true
       @color = 'yellow'
       play 'slam.wav'
@@ -29,12 +31,25 @@ boss = (room) ->
           #console.log p, @_touching
           if @touching p
             p.damage 2
-        again()
-
+        again() 
     
     a.on 'draw', ->
       ctx.fillStyle = if @telegraphing then 'yellow' else if @damaged then 'grey' else 'red'
       ctx.fillRect h/2, -h/2, w, h
+      ctx.fillStyle = 'orange'
+      for i in [1..@hp]
+        ctx.beginPath()
+        ctx.arc 75+i*25, Math.sin(i)*15, 10, 0, Math.PI*2
+        ctx.fill()
+        
+    a.phase('ArmHeal').on 'draw', ->
+      ctx.fillStyle = 'purple'
+      ctx.fillRect h/2, -h/2, w, h
+      ctx.fillStyle = 'orange'
+      for i in [1..@hp]
+        ctx.beginPath()
+        ctx.arc 75+i*25, Math.sin(i)*15, 10, 0, Math.PI*2
+        ctx.fill()
     
     a
   arms = (makeArm(i*Math.PI/2) for i in [0...4])
@@ -55,8 +70,8 @@ boss = (room) ->
   # TODO: Change to making dead arms if necessary
   head.phase('ArmSlam').on 'enter', ->
     ratio = @health/@maxHealth
-    
-    
+    for a in arms
+      a.invincible = false
     
     #if ratio > 0.75
     #  arms = (makeArm(i*Math.PI/2) for i in [0...4])
@@ -95,7 +110,7 @@ boss = (room) ->
         @lastPulse = room.time
 
 
-  head.phase('ArmSlam').phaseTimer { initial: 30000 }, ->
+  head.phase('ArmSlam').phaseTimer { initial: 10000 }, ->
     room.enterPhase 'ArmHeal'
 
   ## ArmHeal - Crux pauses for a moment and heals its most injured arms
@@ -116,7 +131,7 @@ boss = (room) ->
     ctx.fill()
     ctx.strokeStyle = 'black'
     ctx.lineWidth = 2
-    ctx.stroke()
+    ctx.stroke()      
 
   ## Retract - Crux reacts to losing an arm by retracting them all
   

@@ -74,19 +74,29 @@ class Entity
   on: (name, fn) ->
     ((@handlers[@targetPhase] ?= {})[name] ?= []).push fn
 
+  once: (name, fn) ->
+    targetPhase = @targetPhase
+    @on name, f = (args...) ->
+      fn.apply @, args
+      @handlers[targetPhase][name] = (h for h in @handlers[targetPhase][name] when h isnt f)
+
   phaseTimer: (opts, fn) ->
     timeFor = (t) ->
       if typeof t is 'number' then t else Math.random()*(t[1]-t[0])+t[0]
     nextEventID = null
     @on 'enter', ->
+      broken = false
       again = =>
+        if broken then return
         nextEventID = @after timeFor(opts.interval), ->
           fn.call @, again
       nextEventID = @after timeFor(opts.initial), ->
         fn.call @, again
-    @on 'exit', ->
-      @cancelTimer nextEventID
-      nextEventID = null
+      @once 'exit', ->
+        throw new Error if broken
+        broken = true
+        @cancelTimer nextEventID
+        nextEventID = null
 
   every: (ms, fn) ->
     @timers[id = @nextTimerID++] =
@@ -113,6 +123,7 @@ class Entity
     id
 
   cancelTimer: (id) ->
+    console.log 'cancelling', id, @timers[id]
     delete @timers[id]
 
   currentPhase: ->
@@ -138,7 +149,7 @@ class Entity
   touching: (other) -> other in @_touching
 
   damage: (amt) ->
-    if typeof @hp is 'number'
+    if typeof @hp is 'number' and @invincible != true
       @hp -= amt
       if @hp <= 0
         @dead = true
