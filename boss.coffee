@@ -29,7 +29,7 @@ boss = (room) ->
     h = 100
     a.x = 0
     a.y = 0#-h/2
-    a.addShape rect(0, -h/2, w, h)
+    a.addShape rect(h/2, -h/2, w, h)
     a.angle = angle
 
     a.phase('ArmSlam').phaseTimer { interval: [3000,8000], initial: [5000,8000] }, (again) ->
@@ -79,15 +79,20 @@ boss = (room) ->
   head.phase('ArmSlam').on 'update', ->
     head.angle += Math.PI/20 * dt/1000
 
-    # pulse
-    head.onCollision 'player', ->
-      return unless @lastPulse <= room.time - 500
+  # pulse
+  head.phase('ArmSlam').on 'update', ->
+    return unless @lastPulse <= room.time - 500
+    pulse = =>
       # find all players within some radius
       # deal them 1 damage
       play 'pulse.wav'
       for p in room.players
         if p.dist(head) <= head.radius + 15
           p.damage 1
+    for e in @_touching
+      if e.type is 'player'
+        pulse()
+        @lastPulse = room.time
 
 
   head.phase('ArmSlam').phaseTimer { initial: 30000 }, ->

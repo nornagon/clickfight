@@ -32,9 +32,12 @@ room.height = canvas.height
 room.players = []
 
 do ->
+  boss room
+
   for i,p of players
     do (p) ->
       player = room.addEntity()
+      player.type = 'player'
       player.x = p.x
       player.y = p.y
       player.addShape circle 0, 0, 10
@@ -63,8 +66,6 @@ do ->
         ctx.restore()
 
       room.players.push player
-
-  boss room
 
 
 draw = ->

@@ -133,8 +133,6 @@ class Entity
     a.targetPhase = name
     a
 
-  onCollision: ->
-
   touching: (other) -> other in @_touching
 
   damage: (amt) -> console.error 'ermagerd'
