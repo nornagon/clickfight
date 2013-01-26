@@ -147,7 +147,7 @@ findVerts = (poly1, poly2, n, dist) ->
   for i in [0...verts2.length] by 2
     vx = verts2[i]
     vy = verts2[i+1]
-    if containsVert poly2, vx, vy
+    if containsVert poly1, vx, vy
       arr.push new Contact new Vect(vx, vy), n, dist
   
   if arr.length then arr else findVertsFallback poly1, poly2, n, dist
