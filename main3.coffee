@@ -5,6 +5,7 @@ ctx = canvas.getContext '2d'
 
 maxSpeed = 900 # px/s
 
+#dt = 16
 
 players =
   mouse:
@@ -23,6 +24,43 @@ players =
     dx:0
     dy:0
 
+room = new Entity
+
+do ->
+  for i,p of players
+    do (p) ->
+      player = room.addEntity()
+      player.on 'draw', ->
+        p = players.mouse
+        ctx.save()
+
+        ctx.translate p.x, p.y
+        ctx.rotate Math.atan2 p.dy, p.dx
+        m = maxSpeed*16/1000
+        d = Math.min m, Math.sqrt(p.dx * p.dx + p.dy * p.dy)
+        ctx.scale 1+d*1/m, 1 - d*0.2/m
+        ctx.beginPath()
+        ctx.arc 0, 0, 10, 0, Math.PI*2
+        ctx.fillStyle = 'blue'
+        ctx.fill()
+        ctx.beginPath()
+        ctx.moveTo 0, 0
+        ctx.lineTo 10, 0
+        ctx.strokeStyle = 'red'
+        ctx.stroke()
+
+        ctx.restore()
+
+
+      player.every 500, ->
+        e = room.addEntity()
+        e.x = players.mouse.x
+        e.y = players.mouse.y
+        e.draw = ->
+          ctx.fillStyle = 'red'
+          ctx.fillRect @x, @y, 20, 20
+        e.after 1000+Math.random()*500, ->
+          @dead = yes
 
 
 draw = ->
@@ -30,6 +68,7 @@ draw = ->
   ctx.fillRect 0, 0, canvas.width, canvas.height
   ctx.strokeStyle = 'black'
 
+  ###
   for id, p of players
     ctx.save()
     ctx.translate p.x, p.y
@@ -48,6 +87,8 @@ draw = ->
     ctx.stroke()
 
     ctx.restore()
+  ###
+  room.forAll (e) -> e.draw()
 
 #into.deadZoneLeftStick = 7849.0/32767.0;
 #into.deadZoneRightStick = 8689/32767.0;
@@ -83,7 +124,8 @@ update = (dt) ->
       p.y = Math.max 0, Math.min canvas.height, p.y
       p.dx *= 0.04*dt
       p.dy *= 0.04*dt
-  
+
+  room.update()
 
 oldT = 0
 frame = (t) ->
