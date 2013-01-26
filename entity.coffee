@@ -42,7 +42,7 @@ class Entity
     @children = (c for c in @children when not c.dead)
 
   draw: ->
-    if @handlers['always']?.draw? or @handlers[@currentPhase()]?.draw?
+    if @handlers['always']?.draw?.length or @handlers[@currentPhase()]?.draw?.length
       @trigger 'draw'
     else
       s.draw() for s in @shapes
@@ -58,7 +58,7 @@ class Entity
     return
 
   on: (name, fn) ->
-    (@handlers[@targetPhase] ?= {})[name] = fn
+    ((@handlers[@targetPhase] ?= {})[name] ?= []).push fn
 
   phaseTimer: (opts, fn) ->
     timeFor = (t) ->
@@ -100,7 +100,10 @@ class Entity
 
   currentPhase: ->
     return @currentPhase_ if @currentPhase_
-    @parent.currentPhase()
+    if @parent
+      @parent.currentPhase()
+    else
+      'always'
 
   enterPhase: (phase) ->
     @forAll (e) ->
