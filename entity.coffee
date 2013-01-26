@@ -1,18 +1,13 @@
 dt = 16 # hm
 class Entity
-  currentPhase = 'always'
-  @phase: (name, fn) ->
-    currentPhase = name
-    fn()
-    currentPhase = 'always'
-    return
-
   constructor: ->
     @children = []
     @dead = no
     @handlers = {}
     @timers = {}
     @nextTimerID = 1
+    # phase that events will bind to. overridden sometimes.
+    @targetPhase = 'always'
 
   addEntity: ->
     @children.push e = new Entity
@@ -36,17 +31,35 @@ class Entity
 
     c.update() for c in @children
 
-    (c.trigger 'death' for c in @children when c.dead)
+    (c.trigger 'removed' for c in @children when c.dead)
     @children = (c for c in @children when not c.dead)
 
   draw: ->
+    @trigger 'draw'
 
   trigger: (event, args...) ->
-    @handlers.always?[event]?.call @, args...
-    @handlers[phase]?[event]?.call @, args...
+    for handler in @handlers['always']?[event] ? []
+      handler.call @, args...
+    for handler in @handlers[@parent.currentPhase]?[event] ? []
+      handler.call @, args...
+    return
 
   on: (name, fn) ->
-    (@handlers[currentPhase] ?= {})[e] = fn
+    (@handlers[@targetPhase] ?= {})[name] = fn
+
+  phaseTimer: (opts, fn) ->
+    timeFor = (t) ->
+      if typeof t is 'number' then t else Math.random()*(t[1]-t[0])+t[0]
+    nextEventID = null
+    @on 'enter', ->
+      again = ->
+        nextEventID = @after timeFor(opts.interval), ->
+          fn.call @, again
+      nextEventID = @after timeFor(opts.initial), ->
+        fn.call @, again
+    @on 'exit', ->
+      @cancelTimer nextEventID
+      nextEventID = null
 
   every: (ms, fn) ->
     @timers[@nextTimerID++] =
@@ -69,6 +82,19 @@ class Entity
       fn: fn
       repeat: no
 
-phase = Entity.phase.bind(Entity)
+  cancelTimer: (id) ->
+    delete @timers[id]
+
+  enterPhase: (phase) ->
+    @forAll (e) ->
+      e.trigger 'exit'
+    @currentPhase = phase
+    @forAll (e) ->
+      e.trigger 'enter'
+
+  phase: (name) ->
+    a = {}
+    a.__proto__ = @
+    a.targetPhase = name
+
 window.Entity = Entity
-window.phase = phase
