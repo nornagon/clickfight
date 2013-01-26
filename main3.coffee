@@ -97,7 +97,7 @@ draw = ->
   
   room.draw()
 
-  ctx.globalAlpha = 0.2
+  ctx.globalAlpha = 0.05
   room.drawShapes()
   ctx.globalAlpha = 1
 

@@ -8,7 +8,37 @@ boss = (room) ->
   head.y = room.height/2
 
   head.addShape circle(0, 0, head.radius)
+  makeArm = (angle) ->
+    a = head.addEntity 'arm'
+    w = 700
+    h = 100
+    a.x = 0
+    a.y = 0#-h/2
+    a.addShape rect(h/2, -h/2, w, h)
+    a.angle = angle
 
+    a.phase('ArmSlam').phaseTimer { interval: [1500,4000], initial: [5000,8000] }, (again) ->
+      @telegraphing = true
+      @color = 'yellow'
+      play 'slam.wav'
+      @after 700, ->
+        @telegraphing = false
+        delete @color
+        # damage all enemies in hitbox
+        for p in room.players
+          #console.log p, @_touching
+          if @touching p
+            p.damage 2
+        again()
+
+    
+    a.on 'draw', ->
+      ctx.fillStyle = if @telegraphing then 'yellow' else if @damaged then 'grey' else 'red'
+      ctx.fillRect h/2, -h/2, w, h
+    
+    a
+  arms = (makeArm(i*Math.PI/2) for i in [0...4])
+  
   ## ArmSlam - a phase where Crux slams the ground under its four giant arms
   ## while defending itself with an electric shell
 
@@ -21,44 +51,12 @@ boss = (room) ->
     ctx.strokeStyle = 'black'
     ctx.lineWidth = 2
     ctx.stroke()
-  
-  
-  makeArm = (angle) ->
-    a = head.addEntity 'arm'
-    w = 700
-    h = 100
-    a.x = 0
-    a.y = 0#-h/2
-    a.addShape rect(h/2, -h/2, w, h)
-    a.angle = angle
-
-    a.phase('ArmSlam').phaseTimer { interval: [3000,8000], initial: [5000,8000] }, (again) ->
-      @telegraphing = true
-      @color = 'yellow'
-      play 'slam.wav'
-      @after 600, ->
-        delete @color
-        # damage all enemies in hitbox
-        for p in room.players
-          #console.log p, @_touching
-          if @touching p
-            p.damage 2
-        again()
-
-    
-    a.on 'draw', ->
-      ctx.fillStyle = if @telgraphing then 'orange' else if @damaged then 'grey' else 'red'
-      ctx.fillRect 0, -h/2, w, h
-    
-    a
-
-  arms = null
 
   # TODO: Change to making dead arms if necessary
   head.phase('ArmSlam').on 'enter', ->
     ratio = @health/@maxHealth
     
-    arms = (makeArm(i*Math.PI/2) for i in [0...4])
+    
     
     #if ratio > 0.75
     #  arms = (makeArm(i*Math.PI/2) for i in [0...4])
@@ -166,6 +164,7 @@ boss = (room) ->
     head.invincible = true
     head.target = [room.width/2, room.height/2 ]
     play 'expand.wav'
+    arms = (makeArm(i*Math.PI/2) for i in [0...4])
 
   head.phase('Expand').on 'update', ->
     head.moveTowards(@target, 500)
