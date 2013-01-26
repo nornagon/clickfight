@@ -66,7 +66,7 @@ class Entity
       if typeof t is 'number' then t else Math.random()*(t[1]-t[0])+t[0]
     nextEventID = null
     @on 'enter', ->
-      again = ->
+      again = =>
         nextEventID = @after timeFor(opts.interval), ->
           fn.call @, again
       nextEventID = @after timeFor(opts.initial), ->
