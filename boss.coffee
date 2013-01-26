@@ -40,15 +40,16 @@ boss = (room) ->
         delete @color
         # damage all enemies in hitbox
         for p in room.players
+          #console.log p, @_touching
           if @touching p
             p.damage 2
         again()
 
-    ###
+    
     a.on 'draw', ->
       ctx.fillStyle = if @telgraphing then 'orange' else if @damaged then 'grey' else 'red'
       ctx.fillRect 0, -h/2, w, h
-    ###
+    
     a
 
   arms = null
@@ -58,6 +59,7 @@ boss = (room) ->
     ratio = @health/@maxHealth
     
     arms = (makeArm(i*Math.PI/2) for i in [0...4])
+    
     #if ratio > 0.75
     #  arms = (makeArm(i*Math.PI/2) for i in [0...4])
     #else if ratio > 0.5
@@ -141,18 +143,18 @@ boss = (room) ->
     head.moveTowards(@target, 100) #pixels per second
     
   head.phase('HeadChase').phaseTimer { interval: [3000,5000], initial: [3000,5000] }, (again) ->
-      @telegraphing = true
-      @after 250, ->
-        @telegraphing = false
-        play 'pulse.wav'
-        for p in room.players
-          if p.dist(head) <= head.radius + 15
-            p.damage 1
-        bolt = head.beam(@x, @y, target.x, target.y) #source, target
-        bolt.collidesWith = ['wall', 'player']
-        bolt.fire()
-        head.boltsFired++
-        again()
+    @telegraphing = true
+    @after 250, ->
+      @telegraphing = false
+      play 'pulse.wav'
+      for p in room.players
+        if p.dist(head) <= head.radius + 15
+          p.damage 1
+      bolt = head.beam(@x, @y, target.x, target.y) #source, target
+      bolt.collidesWith = ['wall', 'player']
+      bolt.fire()
+      head.boltsFired++
+      again()
 
   head.phase('HeadChase').phaseTimer { interval: 40000 }, ->
     room.enterPhase 'Expand'

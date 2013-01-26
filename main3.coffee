@@ -49,7 +49,7 @@ do ->
       player.on 'draw', ->
         ctx.save()
 
-        ctx.translate p.x, p.y
+        #ctx.translate p.x, p.y
         ctx.rotate Math.atan2 p.dy, p.dx
         m = maxSpeed*16/1000
         d = Math.min m, Math.sqrt(p.dx * p.dx + p.dy * p.dy)
@@ -94,7 +94,13 @@ draw = ->
 
     ctx.restore()
   ###
+  
   room.draw()
+
+  ctx.globalAlpha = 0.2
+  room.drawShapes()
+  ctx.globalAlpha = 1
+
   #room.forAll (e) -> e.draw()
 
 #into.deadZoneLeftStick = 7849.0/32767.0;
@@ -138,11 +144,13 @@ update = (dt) ->
   room.forAll (e) ->
     shapes = shapes.concat e.shapes if e.shapes
     e._touching.length = 0
+    #e.color = 'blue'
 
   for a,x in shapes
     for b,y in shapes when x < y
       collisions = collide a, b
       if collisions.length
+        #a.owner.color = b.owner.color = 'red'
         a.owner._touching.push b.owner
         b.owner._touching.push a.owner
   room.time += 16

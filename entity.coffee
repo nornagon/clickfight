@@ -51,12 +51,14 @@ class Entity
 
     if @handlers['always']?.draw?.length or @handlers[@currentPhase()]?.draw?.length
       @trigger 'draw'
-    else
-      s.draw() for s in @shapes
 
     e.draw() for e in @children
 
     ctx.restore()
+
+  drawShapes: ->
+    s.draw() for s in @shapes
+    e.drawShapes() for e in @children
 
   addShape: (s) ->
     s.owner = @
@@ -136,5 +138,7 @@ class Entity
   touching: (other) -> other in @_touching
 
   damage: (amt) -> console.error 'ermagerd'
+
+  dist: (other) -> v.len v.sub @tpos, other.tpos
 
 window.Entity = Entity
