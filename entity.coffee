@@ -137,7 +137,11 @@ class Entity
 
   touching: (other) -> other in @_touching
 
-  damage: (amt) -> console.error 'ermagerd'
+  damage: (amt) ->
+    if typeof @hp is 'number'
+      @hp -= amt
+      if @hp <= 0
+        @dead = true
 
   dist: (other) -> v.len v.sub @tpos, other.tpos
 

@@ -47,8 +47,6 @@ do ->
         @y = p.y
 
       player.hp = 3
-      player.damage = ->
-        @hp--
 
       player.on 'draw', ->
         ctx.save()
