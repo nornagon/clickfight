@@ -30,6 +30,7 @@ room.trot = v.forangle 0
 room.width = canvas.width
 room.height = canvas.height
 room.players = []
+room.time = 0
 
 do ->
   for i,p of players
@@ -143,6 +144,7 @@ update = (dt) ->
       if collisions.length
         a.owner._touching.push b.owner
         b.owner._touching.push a.owner
+  room.time += 16
 
 oldT = 0
 frame = (t) ->
