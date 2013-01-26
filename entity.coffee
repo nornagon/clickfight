@@ -1,6 +1,7 @@
 dt = 16 # hm
 class Entity
-  constructor: ->
+  constructor: (name) ->
+    @name = name if name
     @children = []
     @dead = no
     @handlers = {}
@@ -10,8 +11,8 @@ class Entity
     # phase that events will bind to. overridden sometimes.
     @targetPhase = 'always'
 
-  addEntity: ->
-    @children.push e = new Entity
+  addEntity: (name) ->
+    @children.push e = new Entity name
     e.parent = @
     e
 
