@@ -4,25 +4,6 @@ canvas.height = 768
 ctx = canvas.getContext '2d'
 maxSpeed = 300 # px/s
 
-#dt = 16
-
-players =
-  mouse:
-    x:100
-    y:100
-    dx:0
-    dy:0
-  gamepad0:
-    x:200
-    y:100
-    dx:0
-    dy:0
-  gamepad1:
-    x:300
-    y:100
-    dx:0
-    dy:0
-
 room = new Entity
 
 room.tpos = v.zero
@@ -32,51 +13,88 @@ room.height = canvas.height
 room.players = []
 room.time = 0
 
+players = {}
+
 do ->
   boss room
 
-  for i,p of players
-    do (p) ->
-      player = room.addEntity()
-      player.type = 'player'
-      player.x = p.x
-      player.y = p.y
-      player.addShape circle 0, 0, 10
-      player.on 'update', ->
-        @x = p.x
-        @y = p.y
+  for i in [1..3]
+    players[i] = player = room.addEntity()
+    player.type = 'player'
+    player.x = i*100
+    player.y = 200
+    player.dx = player.dy = 0
+    player.addShape circle 0, 0, 10
 
-      player.hp = 3
+    player.frozen = no
 
-      player.on 'draw', ->
-        ctx.save()
+    player.hp = 3
 
-        #ctx.translate p.x, p.y
-        ctx.rotate Math.atan2 p.dy, p.dx
-        m = maxSpeed*16/1000
-        d = Math.min m, Math.sqrt(p.dx * p.dx + p.dy * p.dy)
-        ctx.scale 1+d*1/m, 1 - d*0.2/m
-        ctx.beginPath()
-        ctx.arc 0, 0, 10, 0, Math.PI*2
-        ctx.fillStyle = 'blue'
-        ctx.fill()
-        ctx.beginPath()
-        ctx.moveTo 0, 0
-        ctx.lineTo 10, 0
-        ctx.strokeStyle = 'red'
-        ctx.stroke()
+    player.cooldown = 0
+    player.on 'update', ->
+      @cooldown = Math.max 0, @cooldown-dt
 
-        ctx.fillStyle = 'red'
-        for i in [0...@hp]
-          x = Math.cos(i*Math.PI*2/3)*3
-          y = Math.sin(i*Math.PI*2/3)*3
+    player.attack = ->
+      if @cooldown <= 0
+        @cooldown = 500
+        @frozen = yes
+        @after 250, ->
+          @frozen = no
+        swipe = @addEntity 'attack'
+        swipe.x = swipe.y = 0
+        swipe.attackTime = 0
+        swipe.on 'update', ->
+          @attackTime += dt
+          if @attackTime >= 250
+            @dead = yes
+        swipe.draw = ->
+          ctx.fillStyle = 'red'
           ctx.beginPath()
-          ctx.arc x, y, 3, 0, Math.PI*2
+          ctx.moveTo 0, 0
+          start = -Math.PI
+          t = start + @attackTime/250*Math.PI*2
+          ctx.lineTo Math.cos(t)*30, Math.sin(t)*30
+          ctx.arc 0, 0, 30, t, Math.max(start,t-0.6), true
+          ctx.closePath()
           ctx.fill()
 
-        ctx.restore()
+        @after 100, ->
+          c = circle 0, 0, 30
+          c.owner = @
+          c.update()
+          room.forAll (e) ->
+            return if e.type is 'player'
+            for s in e.shapes
+              if collide(c, s).length
+                e.damage 1
 
-      room.players.push player
+    player.on 'draw', ->
+      ctx.save()
+
+      m = maxSpeed*16/1000
+      d = Math.min m, Math.sqrt(@dx * @dx + @dy * @dy)
+      ctx.scale 1+d*1/m, 1 - d*0.2/m
+      ctx.beginPath()
+      ctx.arc 0, 0, 10, 0, Math.PI*2
+      ctx.fillStyle = 'blue'
+      ctx.fill()
+      ctx.beginPath()
+      ctx.moveTo 0, 0
+      ctx.lineTo 10, 0
+      ctx.strokeStyle = 'red'
+      ctx.stroke()
+
+      ctx.fillStyle = 'red'
+      for i in [0...@hp]
+        x = Math.cos(i*Math.PI*2/3)*4
+        y = Math.sin(i*Math.PI*2/3)*4
+        ctx.beginPath()
+        ctx.arc x, y, 3, 0, Math.PI*2
+        ctx.fill()
+
+      ctx.restore()
+
+    room.players.push player
 
 
 draw = ->
@@ -116,7 +134,7 @@ draw = ->
 #into.deadZoneLeftStick = 7849.0/32767.0;
 #into.deadZoneRightStick = 8689/32767.0;
 
-update = (dt) ->
+update = ->
   pads = navigator.webkitGetGamepads()
   for c, i in pads when c
     dead = 7849.0/32767.0
@@ -127,18 +145,20 @@ update = (dt) ->
       angle = Math.atan2 dy, dx
       dist = dx * dx + dy * dy
 
-      p = players["gamepad#{i}"]
+      p = players[i+2]
       if p
-        p.dir = angle
         p.dx = 20 * dist * Math.cos angle
         p.dy = 20 * dist * Math.sin angle
 
 
 
   for id, p of players
+    if p.frozen
+      p.dx = p.dy = 0
+      continue
     d = Math.sqrt(p.dx*p.dx+p.dy*p.dy)
     if d > 0
-      p.dir = Math.atan2 p.dy, p.dx
+      p.angle = Math.atan2 p.dy, p.dx
       t = Math.atan2 p.dy, p.dx
       d = Math.min d, maxSpeed*dt/1000
       p.x += d * Math.cos(t)
@@ -175,10 +195,11 @@ frame(0)
 
 
 mousemove = (e) ->
-  players.mouse.dx += e.webkitMovementX
-  players.mouse.dy += e.webkitMovementY
+  players[1].dx += e.webkitMovementX
+  players[1].dy += e.webkitMovementY
 
 mousedown = (e) ->
+  players[1].attack()
 
 mouseup = (e) ->
 

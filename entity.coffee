@@ -1,4 +1,4 @@
-dt = 16 # hm
+window.dt = 16 # hm
 class Entity
   constructor: (name) ->
     @name = name if name
