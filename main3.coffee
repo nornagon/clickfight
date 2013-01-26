@@ -62,6 +62,8 @@ do ->
 
         ctx.restore()
 
+      room.players.push player
+
   boss room
 
 
