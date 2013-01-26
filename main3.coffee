@@ -27,6 +27,8 @@ room = new Entity
 
 room.tpos = v.zero
 room.trot = v.forangle 0
+room.width = canvas.width
+room.height = canvas.height
 
 
 do ->
@@ -59,15 +61,7 @@ do ->
 
         ctx.restore()
 
-      player.every 500, ->
-        e = room.addEntity()
-        e.x = @x
-        e.y = @y
-        e.draw = ->
-          ctx.fillStyle = 'red'
-          ctx.fillRect @x, @y, 20, 20
-        e.after 1000+Math.random()*500, ->
-          @dead = yes
+  boss room
 
 
 draw = ->

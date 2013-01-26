@@ -10,6 +10,7 @@ class Entity
     @shapes = []
     # phase that events will bind to. overridden sometimes.
     @targetPhase = 'always'
+    @angle = 0
 
   addEntity: (name) ->
     @children.push e = new Entity name
@@ -50,6 +51,7 @@ class Entity
 
   addShape: (s) ->
     s.owner = @
+    @shapes.push s
 
   trigger: (event, args...) ->
     for handler in @handlers['always']?[event] ? []
@@ -117,5 +119,8 @@ class Entity
     a = {}
     a.__proto__ = @
     a.targetPhase = name
+    a
+
+  onCollision: ->
 
 window.Entity = Entity

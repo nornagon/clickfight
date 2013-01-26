@@ -1,12 +1,16 @@
+## Crux, a cross shaped boss who descends on a city, slamming it with its
+## four giant arms. It also possesses healing power and lightning attacks
+
 boss = (room) ->
   head = room.addEntity()
   head.radius = 75
   head.x = room.width/2
   head.y = room.height/2
 
-  head.addHitbox circle(head.x, head.y, head.radius)
+  head.addShape circle(0, 0, head.radius)
 
-  ## ArmSlam
+  ## ArmSlam - a phase where Crux slams the ground under its four giant arms
+  ## while defending itself with an electric shell
 
   head.phase('ArmSlam').on 'draw', ->
     ctx.beginPath()
@@ -21,11 +25,12 @@ boss = (room) ->
     a = head.addEntity()
     w = 500
     h = 30
-    a.addHitbox rect(0, -h/2, w, h)
-    a.angle = angle
+    a.addShape rect(0, -h/2, w, h)
+    a.rot = angle
 
     a.phase('ArmSlam').phaseTimer { interval: [3000,8000], initial: [5000,8000] }, (again) ->
       @telegraphing = true
+      play 'slam.wav'
       @after 250, ->
         @telegraphing = false
         # damage all enemies in hitbox
@@ -35,36 +40,61 @@ boss = (room) ->
         again()
 
     a.on 'draw', ->
-      ctx.fillStyle = if @telgraphing then 'orange' else 'red'
+      ctx.fillStyle = if @telgraphing then 'orange' else if @damaged then 'grey' else 'red'
       ctx.fillRect 0, -h/2, w, h
+      
+    a
 
-  arms = (makeArm(i*Math.PI/2) for i in [0...4])
+  arms = null
 
-  head.lastPulse = null
+  # TODO: Change to making dead arms if necessary
+  head.phase('ArmSlam').on 'enter', ->
+    ratio = @health/@maxHealth
+    
+    arms = (makeArm(i*Math.PI/2) for i in [0...4])
+    #if ratio > 0.75
+    #  arms = (makeArm(i*Math.PI/2) for i in [0...4])
+    #else if ratio > 0.5
+    #  #arms = (makeArm
+    #else if ratio > 0.25
+    #else
+    
+    head.invincible = true
+    head.lastPulse = null
+    
+    for a in arms
+      a.on 'death', ->
+        room.enterPhase 'Retract'
+      
+    for a in arms
+      a.phase('Retract').on 'enter',  ->
+        a.destroy()
 
   head.phase('ArmSlam').on 'update', ->
-    head.angle += Math.PI/20 * dt/1000
+    head.rot += Math.PI/20 * dt/1000
 
     # pulse
-    head.collidesWith 'player', ->
+    head.onCollision 'player', ->
       return unless @lastPulse <= room.time - 500
       # find all players within some radius
       # deal them 1 damage
+      play 'pulse.wav'
       for p in room.players
         if p.dist(head) <= head.radius + 15
           p.damage 1
 
 
-  head.phase('ArmSlam').phaseTimer { inital: 30000 }, ->
+  head.phase('ArmSlam').phaseTimer { initial: 30000 }, ->
     room.enterPhase 'ArmHeal'
 
-  ## ArmHeal
+  ## ArmHeal - Crux pauses for a moment and heals its most injured arms
 
   head.phase('ArmHeal').on 'enter', ->
     head.invincible = true
     a.invincible = true for a in arms
     maxArmHealth = Math.max.apply(Math, (a.hp for a in arms))
     a.hp = maxArmHealth for a in arms
+    play 'heal.wav'
     head.after 3000, ->
       room.enterPhase 'ArmSlam'
 
@@ -76,3 +106,59 @@ boss = (room) ->
     ctx.strokeStyle = 'black'
     ctx.lineWidth = 2
     ctx.stroke()
+
+  ## Retract - Crux reacts to losing an arm by retracting them all
+  
+  room.phase('Retract').on 'enter', ->
+    play 'retract.wav'
+
+  head.phase('Retract').phaseTimer { initial: 3000 }, ->
+    room.enterPhase 'HeadChase'
+  
+  ## HeadChase - With its arms protected, Crux decides to use its lightning
+  ## attacks to focus down and kill its attackers
+  
+  head.phase('HeadChase').on 'enter', ->
+    head.target = room.randomLivePlayer()
+    head.boltsFired = 0;
+    @invincible = false
+
+  head.phase('HeadChase').on 'update', ->
+    if @boltsFired >= 2
+      head.target = room.differentRandomLivePlayer()
+      @boltsFired = 0
+    head.moveTowards(@target, 100) #pixels per second
+    
+  head.phase('HeadChase').phaseTimer { interval: [3000,5000], initial: [3000,5000] }, (again) ->
+      @telegraphing = true
+      @after 250, ->
+        @telegraphing = false
+        play 'pulse.wav'
+        for p in room.players
+          if p.dist(head) <= head.radius + 15
+            p.damage 1
+        bolt = head.beam(@x, @y, target.x, target.y) #source, target
+        bolt.collidesWith = ['wall', 'player']
+        bolt.fire()
+        head.boltsFired++
+        again()
+
+  head.phase('HeadChase').phaseTimer { interval: 40000 }, ->
+    room.enterPhase 'Expand'
+    
+  ## Expand - With healed (or permanently damaged) arms brought back out
+  ## Crux goes on the offensive again
+  
+  head.phase('Expand').on 'enter', ->
+    head.invincible = true
+    head.target = [room.width/2, room.height/2 ]
+    play 'expand.wav'
+
+  head.phase('Expand').on 'update', ->
+    head.moveTowards(@target, 500)
+  
+  head.phase('Expand').phaseTimer { initial: 3000 }, ->
+    room.enterPhase 'ArmSlam'
+  
+  room.enterPhase 'ArmSlam'
+
