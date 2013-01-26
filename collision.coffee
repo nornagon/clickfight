@@ -3,29 +3,10 @@
 min = Math.min
 max = Math.max
 
-exports.Vect = Vect = (@x, @y) ->
-
-vadd = (v1, v2) -> new Vect v1.x + v2.x, v1.y + v2.y
-vsub = (v1, v2) -> new Vect v1.x - v2.x, v1.y - v2.y
-vneg = (v) -> new Vect -v.x, -v.y
-vmult = (v, f) -> new Vect v.x * f, v.y * f
-vdot = (v1, v2) -> v1.x * v2.x + v1.y * v2.y
-vdot2 = (x1, y1, x2, y2) -> x1 * x2 + y1 * y2
-vcross = (v1, v2) -> v1.x * v2.y - v1.y * v2.x
-vcross2 = (x1, y1, x2, y2) -> x1 * y2 - y1 * x2
-vlengthsq = (v) -> vdot v, v
-vlength = (v) -> Math.sqrt vdot v, v
-vperp = (v) -> new Vect -v.y, v.x
-vnormalize = (v) -> vmult v, 1/vlength(v)
-vrotate = (v1, v2) -> new Vect v1.x*v2.x - v1.y*v2.y, v1.x*v2.y + v1.y*v2.x
-vforangle = (a) -> new Vect Math.cos(a), Math.sin(a)
-clamp = (f, minv, maxv) -> min(max(f, minv), maxv)
-clamp01 = (f) -> min(max(f, 0), 1)
-
-vzero = new Vect 0,0
+exports = window
 
 Contact = (@p, @n, @dist) ->
-  this.r1 = this.r2 = vzero
+  this.r1 = this.r2 = v.zero
   this.nMass = this.tMass = this.bounce = this.bias = 0
 
   this.jnAcc = this.jtAcc = this.jBias = 0
@@ -37,16 +18,16 @@ NONE = []
 # Used by several collision tests.
 circle2circleQuery = (p1, p2, r1, r2) ->
   mindist = r1 + r2
-  delta = vsub(p2, p1)
-  distsq = vlengthsq(delta)
+  delta = v.sub(p2, p1)
+  distsq = v.lengthsq(delta)
   return if distsq >= mindist*mindist
   
   dist = Math.sqrt distsq
 
   # Allocate and initialize the contact.
   new Contact(
-    vadd(p1, vmult(delta, 0.5 + (r1 - 0.5*mindist)/(dist ? dist : Infinity))),
-    (if dist then vmult(delta, 1/dist) else new Vect 1, 0),
+    v.add(p1, v.mult(delta, 0.5 + (r1 - 0.5*mindist)/(dist ? dist : Infinity))),
+    (if dist then v.mult(delta, 1/dist) else new Vect 1, 0),
     dist - mindist
   )
 
@@ -60,9 +41,9 @@ exports.circle2segment = (circleShape, segmentShape) ->
   seg_b = segmentShape.tb
   center = circleShape.tc
   
-  seg_delta = vsub(seg_b, seg_a)
-  closest_t = clamp01(vdot(seg_delta, vsub(center, seg_a))/vlengthsq(seg_delta))
-  closest = vadd(seg_a, vmult(seg_delta, closest_t))
+  seg_delta = v.sub(seg_b, seg_a)
+  closest_t = clamp01(v.dot(seg_delta, v.sub(center, seg_a))/v.lengthsq(seg_delta))
+  closest = v.add(seg_a, v.mult(seg_delta, closest_t))
   
   contact = circle2circleQuery(center, closest, circleShape.r, segmentShape.r)
 
@@ -71,8 +52,8 @@ exports.circle2segment = (circleShape, segmentShape) ->
     
     # Reject endcap collisions if tangents are provided.
     if(
-      (closest_t == 0 and vdot(n, segmentShape.a_tangent) < 0) ||
-      (closest_t == 1 and vdot(n, segmentShape.b_tangent) < 0)
+      (closest_t == 0 and v.dot(n, segmentShape.a_tangent) < 0) ||
+      (closest_t == 1 and v.dot(n, segmentShape.b_tangent) < 0)
     ) then NONE else [contact]
   else
     NONE
@@ -91,14 +72,14 @@ setAxes = (poly) ->
     x2 = verts[(i+2)%len]
     y2 = verts[(i+3)%len]
 
-    n = vnormalize new Vect y1-y2, x2-x1
-    d = vdot2 n.x, n.y, x1, y1
+    n = v.normalize new Vect y1-y2, x2-x1
+    d = v.dot2 n.x, n.y, x1, y1
     new Axis n, d
 
 exports.setupPoly = (poly) ->
   setAxes poly
   poly.tVerts = new Array poly.verts.length
-  poly.tAxes = (new Axis vzero, 0 for [0...poly.axes.length])
+  poly.tAxes = (new Axis v.zero, 0 for [0...poly.axes.length])
 
 transformVerts = (poly, p, rot) ->
   src = poly.verts
@@ -132,21 +113,21 @@ transformAxes = (poly, p, rot) ->
   dst = poly.tAxes
   
   for i in [0...src.length]
-    n = vrotate src[i].n, rot
+    n = v.rotate src[i].n, rot
     dst[i].n = n
-    dst[i].d = vdot(p, n) + src[i].d
+    dst[i].d = v.dot(p, n) + src[i].d
 
 exports.updatePoly = (poly, p, rot) ->
-  rot = vforangle rot if typeof rot is 'number'
+  rot = v.forangle rot if typeof rot is 'number'
   transformVerts poly, p, rot
   transformAxes poly, p, rot
 
 valueOnAxis = (poly, n, d) ->
   tVerts = poly.tVerts
-  m = vdot2 n.x, n.y, tVerts[0], tVerts[1]
+  m = v.dot2 n.x, n.y, tVerts[0], tVerts[1]
   
   for i in [2...tVerts.length] by 2
-    m = min m, vdot2(n.x, n.y, tVerts[i], tVerts[i+1])
+    m = min m, v.dot2(n.x, n.y, tVerts[i], tVerts[i+1])
   
   m - d
 
@@ -154,7 +135,7 @@ containsVert = (poly, vx, vy) ->
   tAxes = poly.tAxes
   for i in [0...tAxes.length]
     n = tAxes[i].n
-    dist = vdot2(n.x, n.y, vx, vy) - tAxes[i].d
+    dist = v.dot2(n.x, n.y, vx, vy) - tAxes[i].d
     return false if dist > 0
   
   true
@@ -163,8 +144,8 @@ containsVertPartial = (poly, vx, vy, n) ->
   tAxes = poly.tAxes
   for i in [0...tAxes.length]
     n2 = tAxes[i].n
-    continue if(vdot(n2, n) < 0)
-    dist = vdot2(n2.x, n2.y, vx, vy) - tAxes[i].d
+    continue if(v.dot(n2, n) < 0)
+    dist = v.dot2(n2.x, n2.y, vx, vy) - tAxes[i].d
     return false if dist > 0
   
   true
@@ -249,7 +230,7 @@ exports.poly2poly = (poly1, poly2) ->
   if min1 > min2
     findVerts poly1, poly2, poly1.tAxes[mini1].n, min1
   else
-    findVerts poly1, poly2, vneg(poly2.tAxes[mini2].n), min2
+    findVerts poly1, poly2, v.neg(poly2.tAxes[mini2].n), min2
 
 ###
 // Like cpPolyValueOnAxis(), but for segments.
@@ -354,9 +335,9 @@ exports.circle2poly = (circ, poly) ->
   axes = poly.tAxes
   
   mini = 0
-  least = vdot(axes[0].n, circ.tc) - axes[0].d - circ.r
+  least = v.dot(axes[0].n, circ.tc) - axes[0].d - circ.r
   for i in [0...axes.length]
-    dist = vdot(axes[i].n, circ.tc) - axes[i].d - circ.r
+    dist = v.dot(axes[i].n, circ.tc) - axes[i].d - circ.r
     if dist > 0
       return NONE
     else if dist > least
@@ -376,17 +357,17 @@ exports.circle2poly = (circ, poly) ->
   x2 = verts[(mini2+2)%len]
   y2 = verts[(mini2+3)%len]
 
-  dta = vcross2 n.x, n.y, x1, y1
-  dtb = vcross2 n.x, n.y, x2, y2
-  dt = vcross n, circ.tc
+  dta = v.cross2 n.x, n.y, x1, y1
+  dtb = v.cross2 n.x, n.y, x2, y2
+  dt = v.cross n, circ.tc
     
   if dt < dtb
     con = circle2circleQuery(circ.tc, new Vect(x2, y2), circ.r, 0, con)
     if con then [con] else NONE
   else if dt < dta
     [new Contact(
-      vsub(circ.tc, vmult(n, circ.r + least/2)),
-      vneg(n),
+      v.sub(circ.tc, v.mult(n, circ.r + least/2)),
+      v.neg(n),
       least
     )]
   else

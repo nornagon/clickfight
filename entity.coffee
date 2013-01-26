@@ -13,6 +13,7 @@ class Entity
     @handlers = {}
     @timers = {}
     @nextTimerID = 1
+    @shapes = []
 
   addEntity: ->
     @children.push e = new Entity
@@ -34,12 +35,21 @@ class Entity
         else
           delete @timers[i]
 
+    if @parent and @x?
+      @trot = v.rotate v.forangle(@angle), @parent.trot
+      @tpos = v.add @parent.tpos, v.rotate2(@x, @y, @parent.trot)
+
+    s.update() for s in @shapes
+
     c.update() for c in @children
 
     (c.trigger 'death' for c in @children when c.dead)
     @children = (c for c in @children when not c.dead)
 
   draw: ->
+
+  addShape: (s) ->
+    s.owner = @
 
   trigger: (event, args...) ->
     @handlers.always?[event]?.call @, args...

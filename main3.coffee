@@ -2,7 +2,6 @@ canvas = document.getElementsByTagName('canvas')[0]
 canvas.width = 1024
 canvas.height = 768
 ctx = canvas.getContext '2d'
-
 maxSpeed = 900 # px/s
 
 #dt = 16
@@ -25,6 +24,10 @@ players =
     dy:0
 
 room = new Entity
+
+room.tpos = v.zero
+room.trot = v.forangle 0
+
 
 do ->
   for i,p of players
