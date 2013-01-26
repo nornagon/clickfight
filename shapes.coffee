@@ -26,18 +26,18 @@ Axis = (@n, @d) ->
 
 # Check that a set of vertexes is convex and has a clockwise winding.
 polyValidate = (verts) ->
-	len = verts.length
+  len = verts.length
   for i in [0...len] by 2
-		x1 = verts[i]
-	 	y1 = verts[i+1]
-		x2 = verts[(i+2)%len]
-		y2 = verts[(i+3)%len]
-		x3 = verts[(i+4)%len]
-		y3 = verts[(i+5)%len]
-		
-		return false if vcross2(x2 - x1, y2 - y1, x3 - x2, y3 - y2) > 0
-	
-	true
+    x1 = verts[i]
+    y1 = verts[i+1]
+    x2 = verts[(i+2)%len]
+    y2 = verts[(i+3)%len]
+    x3 = verts[(i+4)%len]
+    y3 = verts[(i+5)%len]
+    
+    return false if vcross2(x2 - x1, y2 - y1, x3 - x2, y3 - y2) > 0
+  
+  true
 
 
 setAxes = (poly) ->
