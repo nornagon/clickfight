@@ -46,6 +46,10 @@ do ->
         @x = p.x
         @y = p.y
 
+      player.hp = 3
+      player.damage = ->
+        @hp--
+
       player.on 'draw', ->
         ctx.save()
 
@@ -63,6 +67,14 @@ do ->
         ctx.lineTo 10, 0
         ctx.strokeStyle = 'red'
         ctx.stroke()
+
+        ctx.fillStyle = 'red'
+        for i in [0...@hp]
+          x = Math.cos(i*Math.PI*2/3)*3
+          y = Math.sin(i*Math.PI*2/3)*3
+          ctx.beginPath()
+          ctx.arc x, y, 3, 0, Math.PI*2
+          ctx.fill()
 
         ctx.restore()
 
