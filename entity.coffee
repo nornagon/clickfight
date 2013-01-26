@@ -1,6 +1,7 @@
 dt = 16 # hm
 class Entity
-  constructor: ->
+  constructor: (name) ->
+    @name = name if name
     @children = []
     @dead = no
     @handlers = {}
@@ -11,8 +12,8 @@ class Entity
     @targetPhase = 'always'
     @angle = 0
 
-  addEntity: ->
-    @children.push e = new Entity
+  addEntity: (name) ->
+    @children.push e = new Entity name
     e.parent = @
     e
 
