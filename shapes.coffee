@@ -107,7 +107,7 @@ poly = (x, y, verts) ->
   p =
     verts: verts
     update: ->
-      updatePoly this, v(owner.tpos.x + x, owner.tpos.y + y), owner.trot
+      updatePoly this, v(@owner.tpos.x + x, @owner.tpos.y + y), @owner.trot
     draw: ->
       ctx.fillStyle = @owner.color or 'green'
       ctx.strokeStyle = 'black'

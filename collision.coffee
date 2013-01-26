@@ -19,7 +19,7 @@ NONE = []
 circle2circleQuery = (p1, p2, r1, r2) ->
   mindist = r1 + r2
   delta = v.sub(p2, p1)
-  distsq = v.lengthsq(delta)
+  distsq = v.lensq(delta)
   return if distsq >= mindist*mindist
   
   dist = Math.sqrt distsq
@@ -42,7 +42,7 @@ exports.circle2segment = (circleShape, segmentShape) ->
   center = circleShape.tc
   
   seg_delta = v.sub(seg_b, seg_a)
-  closest_t = clamp01(v.dot(seg_delta, v.sub(center, seg_a))/v.lengthsq(seg_delta))
+  closest_t = clamp01(v.dot(seg_delta, v.sub(center, seg_a))/v.lensq(seg_delta))
   closest = v.add(seg_a, v.mult(seg_delta, closest_t))
   
   contact = circle2circleQuery(center, closest, circleShape.r, segmentShape.r)
