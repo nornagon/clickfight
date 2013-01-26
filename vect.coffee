@@ -4,7 +4,7 @@ min = Math.min
 max = Math.max
 
 Vect = (@x, @y) ->
-module.exports = v = (x, y) -> new Vect x, y
+window.v = v = (x, y) -> new Vect x, y
 v.Vect = Vect
 
 v.add = (v1, v2) -> new Vect v1.x + v2.x, v1.y + v2.y
