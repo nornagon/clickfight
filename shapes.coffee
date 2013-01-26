@@ -2,6 +2,7 @@ circle = (x, y, radius) ->
   c: v(x,y) # center
   tc: null # transformed center
   r: radius # radius
+  type: 'circle'
 
   update: ->
     @tc = v.add @owner.tpos, v.rotate(@c, @owner.trot)
@@ -122,6 +123,7 @@ poly = (x, y, verts) ->
         ctx.lineTo @verts[i] + x, @verts[i+1] + y
       ctx.fill()
       ctx.stroke()
+    type: 'poly'
 
   setupPoly p
 
@@ -129,5 +131,21 @@ poly = (x, y, verts) ->
 
 
 rect = (x, y, w, h) -> poly x, y, [0, 0,  0, h,  w, h,  w, 0]
+
+
+collide = (a, b) ->
+  switch a.type
+    when 'circle'
+      switch b.type
+        when 'circle'
+          circle2circle a, b
+        when 'poly'
+          circle2poly a, b
+    when 'poly'
+      switch b.type
+        when 'circle'
+          circle2poly b, a
+        when 'poly'
+          poly2poly a, b
 
 

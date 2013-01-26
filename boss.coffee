@@ -33,21 +33,22 @@ boss = (room) ->
     a.angle = angle
 
     a.phase('ArmSlam').phaseTimer { interval: [3000,8000], initial: [5000,8000] }, (again) ->
-      
       @telegraphing = true
+      @color = 'yellow'
       play 'slam.wav'
-      @after 250, ->
-        @telegraphing = false
+      @after 600, ->
+        delete @color
         # damage all enemies in hitbox
         for p in room.players
           if @touching p
             p.damage 2
         again()
 
+    ###
     a.on 'draw', ->
       ctx.fillStyle = if @telgraphing then 'orange' else if @damaged then 'grey' else 'red'
       ctx.fillRect 0, -h/2, w, h
-      
+    ###
     a
 
   arms = null

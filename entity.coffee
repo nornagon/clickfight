@@ -11,6 +11,7 @@ class Entity
     # phase that events will bind to. overridden sometimes.
     @targetPhase = 'always'
     @angle = 0
+    @_touching = []
 
   addEntity: (name) ->
     @children.push e = new Entity name
@@ -130,5 +131,9 @@ class Entity
     a
 
   onCollision: ->
+
+  touching: (other) -> other in @_touching
+
+  damage: (amt) -> console.error 'ermagerd'
 
 window.Entity = Entity

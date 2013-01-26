@@ -129,6 +129,18 @@ update = (dt) ->
 
   room.update()
 
+  shapes = []
+  room.forAll (e) ->
+    shapes = shapes.concat e.shapes if e.shapes
+    e._touching.length = 0
+
+  for a,x in shapes
+    for b,y in shapes when x < y
+      collisions = collide a, b
+      if collisions.length
+        a.owner._touching.push b.owner
+        b.owner._touching.push a.owner
+
 oldT = 0
 frame = (t) ->
   update t-oldT
