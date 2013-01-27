@@ -37,7 +37,7 @@ class Entity
       @trot = v.rotate v.forangle(@angle), @parent.trot
       @tpos = v.add @parent.tpos, v.rotate2(@x, @y, @parent.trot)
 
-    s.update() for s in @shapes
+      s.update(@tpos, @trot) for s in @shapes
 
     c.update() for c in @children
 
@@ -123,7 +123,7 @@ class Entity
     id
 
   cancelTimer: (id) ->
-    console.log 'cancelling', id, @timers[id]
+    #console.log 'cancelling', id, @timers[id]
     delete @timers[id]
 
   currentPhase: ->

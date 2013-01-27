@@ -3,6 +3,8 @@
 min = Math.min
 max = Math.max
 
+#v = require './vect'
+Vect = v.Vect
 exports = window
 
 Contact = (@p, @n, @dist) ->
@@ -42,21 +44,12 @@ exports.circle2segment = (circleShape, segmentShape) ->
   center = circleShape.tc
   
   seg_delta = v.sub(seg_b, seg_a)
-  closest_t = clamp01(v.dot(seg_delta, v.sub(center, seg_a))/v.lensq(seg_delta))
+  closest_t = v.clamp01(v.dot(seg_delta, v.sub(center, seg_a))/v.lensq(seg_delta))
   closest = v.add(seg_a, v.mult(seg_delta, closest_t))
   
   contact = circle2circleQuery(center, closest, circleShape.r, segmentShape.r)
 
-  if contact
-    n = contact.n
-    
-    # Reject endcap collisions if tangents are provided.
-    if(
-      (closest_t == 0 and v.dot(n, segmentShape.a_tangent) < 0) ||
-      (closest_t == 1 and v.dot(n, segmentShape.b_tangent) < 0)
-    ) then NONE else [contact]
-  else
-    NONE
+  if contact then [contact] else NONE
 
 valueOnAxis = (poly, n, d) ->
   tVerts = poly.tVerts
@@ -120,7 +113,7 @@ findVertsFallback = (poly1, poly2, n, dist) ->
   for i in [0...verts1.length] by 2
     vx = verts1[i]
     vy = verts1[i+1]
-    if containsVertPartial poly2, vx, vy, vneg(n)
+    if containsVertPartial poly2, vx, vy, v.neg(n)
       arr.push new Contact new Vect(vx, vy), n, dist
   
   verts2 = poly2.tVerts
@@ -161,111 +154,88 @@ exports.poly2poly = (poly1, poly2) ->
   mini2 = findMSA poly1, poly2.tAxes
   return NONE if mini2 is -1
   min2 = last_MSA_min
-  
+
   # There is overlap, find the penetrating verts
   if min1 > min2
     findVerts poly1, poly2, poly1.tAxes[mini1].n, min1
   else
     findVerts poly1, poly2, v.neg(poly2.tAxes[mini2].n), min2
 
-###
-// Like cpPolyValueOnAxis(), but for segments.
-var segValueOnAxis = function(seg, n, d)
-{
-  var a = vdot(n, seg.ta) - seg.r;
-  var b = vdot(n, seg.tb) - seg.r;
-  return min(a, b) - d;
-};
+# Like cpPolyValueOnAxis(), but for segments.
+segValueOnAxis = (seg, n, d) ->
+  a = v.dot(n, seg.ta) - seg.r
+  b = v.dot(n, seg.tb) - seg.r
+  min(a, b) - d
 
-// Identify vertexes that have penetrated the segment.
-var findPointsBehindSeg = function(arr, seg, poly, pDist, coef) 
-{
-  var dta = vcross(seg.tn, seg.ta);
-  var dtb = vcross(seg.tn, seg.tb);
-  var n = vmult(seg.tn, coef);
+# Identify vertexes that have penetrated the segment.
+findPointsBehindSeg = (arr, seg, poly, pDist, coef) ->
+  dta = v.cross(seg.tn, seg.ta)
+  dtb = v.cross(seg.tn, seg.tb)
+  n = v.mult(seg.tn, coef)
   
-  var verts = poly.tVerts;
-  for(var i=0; i<verts.length; i+=2){
-    var vx = verts[i];
-    var vy = verts[i+1];
-    if(vdot2(vx, vy, n.x, n.y) < vdot(seg.tn, seg.ta)*coef + seg.r){
-      var dt = vcross2(seg.tn.x, seg.tn.y, vx, vy);
-      if(dta >= dt && dt >= dtb){
-        arr.push(new Contact(new Vect(vx, vy), n, pDist, hashPair(poly.hashid, i)));
-      }
-    }
-  }
-};
+  verts = poly.tVerts
+  for i in [0...verts.length] by 2
+    vx = verts[i]
+    vy = verts[i+1]
+    if v.dot2(vx, vy, n.x, n.y) < v.dot(seg.tn, seg.ta)*coef + seg.r
+      dt = v.cross2 seg.tn.x, seg.tn.y, vx, vy
+      if dta >= dt && dt >= dtb
+        arr.push new Contact new Vect(vx, vy), n, pDist
+  return
 
-// This one is complicated and gross. Just don't go there...
-// TODO: Comment me!
-var seg2poly = function(seg, poly)
-{
-  var arr = [];
+exports.segment2poly = (seg, poly) ->
+  arr = []
 
-  var axes = poly.tAxes;
-  var numVerts = axes.length;
+  axes = poly.tAxes
+  numVerts = axes.length
   
-  var segD = vdot(seg.tn, seg.ta);
-  var minNorm = poly.valueOnAxis(seg.tn, segD) - seg.r;
-  var minNeg = poly.valueOnAxis(vneg(seg.tn), -segD) - seg.r;
-  if(minNeg > 0 || minNorm > 0) return NONE;
+  segD = v.dot(seg.tn, seg.ta)
+  minNorm = valueOnAxis(poly, seg.tn, segD) - seg.r
+  minNeg = valueOnAxis(poly, v.neg(seg.tn), -segD) - seg.r
+  return NONE if minNeg > 0 or minNorm > 0
   
-  var mini = 0;
-  var poly_min = segValueOnAxis(seg, axes[0].n, axes[0].d);
-  if(poly_min > 0) return NONE;
-  for(var i=0; i<numVerts; i++){
-    var dist = segValueOnAxis(seg, axes[i].n, axes[i].d);
-    if(dist > 0){
-      return NONE;
-    } else if(dist > poly_min){
-      poly_min = dist;
-      mini = i;
-    }
-  }
+  mini = 0
+  poly_min = segValueOnAxis seg, axes[0].n, axes[0].d
+  return NONE if poly_min > 0
+  for i in [0...numVerts]
+    dist = segValueOnAxis seg, axes[i].n, axes[i].d
+    if dist > 0
+      return NONE
+    else if dist > poly_min
+      poly_min = dist
+      mini = i
   
-  var poly_n = vneg(axes[mini].n);
+  poly_n = v.neg axes[mini].n
   
-  var va = vadd(seg.ta, vmult(poly_n, seg.r));
-  var vb = vadd(seg.tb, vmult(poly_n, seg.r));
-  if(poly.containsVert(va.x, va.y))
-    arr.push(new Contact(va, poly_n, poly_min, hashPair(seg.hashid, 0)));
-  if(poly.containsVert(vb.x, vb.y))
-    arr.push(new Contact(vb, poly_n, poly_min, hashPair(seg.hashid, 1)));
+  va = v.add seg.ta, v.mult poly_n, seg.r
+  vb = v.add seg.tb, v.mult poly_n, seg.r
+  if containsVert poly, va.x, va.y
+    arr.push new Contact va, poly_n, poly_min
+  if containsVert poly, vb.x, vb.y
+    arr.push new Contact vb, poly_n, poly_min
   
-  // Floating point precision problems here.
-  // This will have to do for now.
-//  poly_min -= cp_collision_slop; // TODO is this needed anymore?
-  
-  if(minNorm >= poly_min || minNeg >= poly_min) {
-    if(minNorm > minNeg)
-      findPointsBehindSeg(arr, seg, poly, minNorm, 1);
+  if minNorm >= poly_min or minNeg >= poly_min
+    if minNorm > minNeg
+      findPointsBehindSeg arr, seg, poly, minNorm, 1
     else
-      findPointsBehindSeg(arr, seg, poly, minNeg, -1);
-  }
+      findPointsBehindSeg arr, seg, poly, minNeg, -1
   
-  // If no other collision points are found, try colliding endpoints.
-  if(arr.length === 0){
-    var mini2 = mini * 2;
-    var verts = poly.tVerts;
+  # If no other collision points are found, try colliding endpoints.
+  if arr.length is 0
+    mini2 = mini * 2
+    verts = poly.tVerts
 
-    var poly_a = new Vect(verts[mini2], verts[mini2+1]);
+    poly_a = new Vect verts[mini2], verts[mini2+1]
     
-    var con;
-    if((con = circle2circleQuery(seg.ta, poly_a, seg.r, 0, arr))) return [con];
-    if((con = circle2circleQuery(seg.tb, poly_a, seg.r, 0, arr))) return [con];
+    if (con = circle2circleQuery seg.ta, poly_a, seg.r, 0, arr) then return [con]
+    if (con = circle2circleQuery seg.tb, poly_a, seg.r, 0, arr) then return [con]
 
-    var len = numVerts * 2;
-    var poly_b = new Vect(verts[(mini2+2)%len], verts[(mini2+3)%len]);
-    if((con = circle2circleQuery(seg.ta, poly_b, seg.r, 0, arr))) return [con];
-    if((con = circle2circleQuery(seg.tb, poly_b, seg.r, 0, arr))) return [con];
-  }
+    len = numVerts * 2
+    poly_b = new Vect verts[(mini2+2)%len], verts[(mini2+3)%len]
+    if (con = circle2circleQuery(seg.ta, poly_b, seg.r, 0, arr)) then return [con]
+    if (con = circle2circleQuery(seg.tb, poly_b, seg.r, 0, arr)) then return [con]
 
-//  console.log(poly.tVerts, poly.tAxes);
-//  console.log('seg2poly', arr);
-  return arr;
-};
-###
+  arr
 
 exports.circle2poly = (circ, poly) ->
   axes = poly.tAxes

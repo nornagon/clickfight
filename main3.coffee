@@ -18,6 +18,11 @@ players = {}
 do ->
   boss room
 
+  wall = room.addEntity()
+  wall.x = wall.y = 100
+  wall.addShape segment 0, 0, 100, 200, 3
+
+
   for i in [1..3]
     players[i] = player = room.addEntity()
     player.type = 'player'
@@ -61,7 +66,7 @@ do ->
         @after 100, ->
           c = circle 0, 0, 30
           c.owner = @
-          c.update()
+          c.update @tpos, @trot
           room.forAll (e) ->
             return if e.type is 'player'
             for s in e.shapes
@@ -101,35 +106,12 @@ draw = ->
   ctx.fillStyle = 'thistle'
   ctx.fillRect 0, 0, canvas.width, canvas.height
   ctx.strokeStyle = 'black'
-
-  ###
-  for id, p of players
-    ctx.save()
-    ctx.translate p.x, p.y
-    ctx.rotate Math.atan2 p.dy, p.dx
-    m = maxSpeed*16/1000
-    d = Math.min m, Math.sqrt(p.dx * p.dx + p.dy * p.dy)
-    ctx.scale 1+d*1/m, 1 - d*0.2/m
-    ctx.beginPath()
-    ctx.arc 0, 0, 10, 0, Math.PI*2
-    ctx.fillStyle = 'blue'
-    ctx.fill()
-    ctx.beginPath()
-    ctx.moveTo 0, 0
-    ctx.lineTo 10, 0
-    ctx.strokeStyle = 'red'
-    ctx.stroke()
-
-    ctx.restore()
-  ###
   
   room.draw()
 
-  ctx.globalAlpha = 0.05
+  ctx.globalAlpha = 0.5
   room.drawShapes()
   ctx.globalAlpha = 1
-
-  #room.forAll (e) -> e.draw()
 
 #into.deadZoneLeftStick = 7849.0/32767.0;
 #into.deadZoneRightStick = 8689/32767.0;
@@ -178,13 +160,13 @@ update = ->
   room.forAll (e) ->
     shapes = shapes.concat e.shapes if e.shapes
     e._touching.length = 0
-    #e.color = 'blue'
+    e.color = 'blue'
 
   for a,x in shapes
     for b,y in shapes when x < y
       collisions = collide a, b
       if collisions.length
-        #a.owner.color = b.owner.color = 'red'
+        a.owner.color = b.owner.color = 'red'
         a.owner._touching.push b.owner
         b.owner._touching.push a.owner
   room.time += 16
