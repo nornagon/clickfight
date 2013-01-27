@@ -15,17 +15,24 @@ room.time = 0
 
 players = {}
 
+staticIndex = new BBTree()
+dynamicIndex = new BBTree staticIndex
+
+shapeQuery = (shape, callback) ->
+  shape.cachePos v(0,0), v(1,0) unless typeof shape.bb_l is 'number'
+  box = bb shape.bb_l, shape.bb_b, shape.bb_r, shape.bb_t
+  dynamicIndex.query box, (s) ->
+    collisions = collide shape, s
+    if collisions.length
+      callback s.owner, s, collisions
+
+drawShapes = false
+
 do ->
   boss room
 
-  wall = room.addEntity()
-  wall.x = wall.y = 100
-  wall.addShape segment 0, 0, 100, 200, 3
-
-
   for i in [1..3]
-    players[i] = player = room.addEntity()
-    player.type = 'player'
+    players[i] = player = room.addEntity 'player'
     player.x = i*100
     player.y = 200
     player.dx = player.dy = 0
@@ -36,11 +43,40 @@ do ->
     player.hp = 3
 
     player.cooldown = 0
+    player.specialcooldown = 0
     player.on 'update', ->
       @cooldown = Math.max 0, @cooldown-dt
+      @specialcooldown = Math.max 0, @specialcooldown-dt
 
+      if @frozen
+        @dx = @dy = 0
+        return
+      d = Math.sqrt(@dx*@dx+@dy*@dy)
+      if d > 0.0001
+        @angle = Math.atan2 @dy, @dx
+        t = Math.atan2 @dy, @dx
+        d = Math.min d, maxSpeed*dt/1000
+
+        @prevX = @x
+        @prevY = @y
+        @x += d * Math.cos(t)
+        @y += d * Math.sin(t)
+
+        @x = Math.max 0, Math.min canvas.width, @x
+        @y = Math.max 0, Math.min canvas.height, @y
+        @dx *= 0.64
+        @dy *= 0.64
+
+
+    player.special = ->
+      if @specialcooldown is 0
+        @specialcooldown = 1500
+        jump = v.mult @trot, 120
+        @x += jump.x
+        @y += jump.y
+    
     player.attack = ->
-      if @cooldown <= 0
+      if @cooldown is 0
         @cooldown = 500
         @frozen = yes
         @after 250, ->
@@ -64,14 +100,10 @@ do ->
           ctx.fill()
 
         @after 100, ->
-          c = circle 0, 0, 30
-          c.owner = @
-          c.update @tpos, @trot
-          room.forAll (e) ->
-            return if e.type is 'player'
-            for s in e.shapes
-              if collide(c, s).length
-                e.damage 1
+          shapeQuery circle(@x, @y, 30), (e) =>
+            return if e is this
+            #return if e.name is 'player'
+            e.damage 1
 
     player.on 'draw', ->
       ctx.save()
@@ -99,6 +131,11 @@ do ->
 
       ctx.restore()
 
+      if drawShapes
+        ctx.fillStyle = 'black'
+        d = v.unrotate v(@dx, @dy), @trot
+        ctx.fillRect d.x - 5, d.y - 5, 10, 10
+
     room.players.push player
 
 
@@ -109,9 +146,11 @@ draw = ->
   
   room.draw()
 
-  ctx.globalAlpha = 0.5
-  room.drawShapes()
-  ctx.globalAlpha = 1
+  if drawShapes
+    ctx.globalAlpha = 0.5
+    staticIndex.each (s) -> s.draw()
+    dynamicIndex.each (s) -> s.draw()
+    ctx.globalAlpha = 1
 
 #into.deadZoneLeftStick = 7849.0/32767.0;
 #into.deadZoneRightStick = 8689/32767.0;
@@ -127,6 +166,8 @@ update = ->
 
     if c.buttons[0] and !p.prevButtonState
       p.attack()
+    if c.buttons[1] and !p.prevButtonState
+      p.special()
 
     p.prevButtonState = c.buttons[0]
 
@@ -138,37 +179,45 @@ update = ->
         p.dx = 20 * dist * Math.cos angle
         p.dy = 20 * dist * Math.sin angle
 
-  for id, p of players
-    if p.frozen
-      p.dx = p.dy = 0
-      continue
-    d = Math.sqrt(p.dx*p.dx+p.dy*p.dy)
-    if d > 0
-      p.angle = Math.atan2 p.dy, p.dx
-      t = Math.atan2 p.dy, p.dx
-      d = Math.min d, maxSpeed*dt/1000
-      p.x += d * Math.cos(t)
-      p.y += d * Math.sin(t)
-      p.x = Math.max 0, Math.min canvas.width, p.x
-      p.y = Math.max 0, Math.min canvas.height, p.y
-      p.dx *= 0.04*dt
-      p.dy *= 0.04*dt
-
   room.update()
 
-  shapes = []
   room.forAll (e) ->
-    shapes = shapes.concat e.shapes if e.shapes
     e._touching.length = 0
     e.color = 'blue'
 
-  for a,x in shapes
-    for b,y in shapes when x < y
-      collisions = collide a, b
-      if collisions.length
-        a.owner.color = b.owner.color = 'red'
-        a.owner._touching.push b.owner
-        b.owner._touching.push a.owner
+  dynamicIndex.reindexQuery (a, b) ->
+    ae = a.owner
+    be = b.owner
+    return if ae.group and ae.group is be.group
+    return unless ae.layers & be.layers
+    
+    collisions = collide a, b
+    return unless collisions.length
+
+    if a.owner.name > b.owner.name
+      [a, b] = [b, a]
+      c.n = v.neg c.n for c in collisions
+
+    ae = a.owner
+    be = b.owner
+
+    ae._touching.push b.owner
+    be._touching.push a.owner
+  
+    ae.color = be.color = 'red'
+
+    switch
+      when ae.name == 'player' and be.name == 'wall'
+        c = collisions[0]
+        p = v.add v(ae.x, ae.y), v.mult c.n, c.dist
+
+        ae.x = p.x
+        ae.y = p.y
+        ae.dx = ae.dy = 0
+        ae.cachePos()
+      else
+        #console.log ae.name, be.name
+
   room.time += 16
 
 oldT = 0
@@ -185,12 +234,19 @@ mousemove = (e) ->
   players[1].dy += e.webkitMovementY
 
 mousedown = (e) ->
-  players[1].attack()
+  if e.button is 0
+    players[1].attack()
+  else if e.button is 2
+    players[1].special()
 
 mouseup = (e) ->
 
 canvas.addEventListener 'click', lockPointer = ->
   canvas.webkitRequestPointerLock()
+
+document.addEventListener 'keydown', (e) ->
+  if e.keyCode is 192
+    drawShapes = !drawShapes
 
 document.addEventListener 'webkitpointerlockchange', ->
   if document.webkitPointerLockElement is canvas

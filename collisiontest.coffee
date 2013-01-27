@@ -53,8 +53,8 @@ for i in [0...360] by 1
 
 seg = shapes.segment 100, 100, 200, 300, 10
 seg.update v(0,0), v.forangle(0)
-poly3 = shapes.rect 0, 150, 500, 100
-poly3.update v(0,0), v.forangle(0)
+poly3 = shapes.rect -250, -50, 500, 100
+poly3.update v(300,200), v.forangle(0)
 
 console.log seg
 console.log poly3.tVerts

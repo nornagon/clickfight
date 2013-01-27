@@ -1,7 +1,6 @@
 window.dt = 16 # hm
 class Entity
-  constructor: (name) ->
-    @name = name if name
+  constructor: (@name) ->
     @children = []
     @dead = no
     @handlers = {}
@@ -12,6 +11,7 @@ class Entity
     @targetPhase = 'always'
     @angle = 0
     @_touching = []
+    @layers = ~0
 
   addEntity: (name) ->
     @children.push e = new Entity name
@@ -21,6 +21,17 @@ class Entity
   forAll: (fn) ->
     fn(@)
     c.forAll fn for c in @children
+
+  childOf: (entity) ->
+    return true if @parent is entity or @parent?.childOf entity
+    return false
+
+  cachePos: ->
+    if @parent and @x?
+      @parent.cachePos() unless @parent.tpos
+
+      @trot = v.rotate v.forangle(@angle), @parent.trot
+      @tpos = v.add @parent.tpos, v.rotate2(@x, @y, @parent.trot)
 
   update: ->
     @trigger 'update'
@@ -33,11 +44,8 @@ class Entity
         else
           delete @timers[i]
 
-    if @parent and @x?
-      @trot = v.rotate v.forangle(@angle), @parent.trot
-      @tpos = v.add @parent.tpos, v.rotate2(@x, @y, @parent.trot)
-
-      s.update(@tpos, @trot) for s in @shapes
+    @cachePos()
+    s.cachePos @tpos, @trot for s in @shapes
 
     c.update() for c in @children
 
@@ -53,16 +61,23 @@ class Entity
       @trigger 'draw'
 
     e.draw() for e in @children
-
     ctx.restore()
-
-  drawShapes: ->
-    s.draw() for s in @shapes
-    e.drawShapes() for e in @children
 
   addShape: (s) ->
     s.owner = @
     @shapes.push s
+    @cachePos()
+    s.cachePos @tpos, @trot
+    dynamicIndex.insert s
+    @on 'removed', -> dynamicIndex.remove s
+
+  addStaticShape: (s) ->
+    s.owner = @
+    @shapes.push s
+    @cachePos()
+    s.cachePos @tpos, @trot
+    staticIndex.insert s
+    @on 'removed', -> staticIndex.remove s
 
   trigger: (event, args...) ->
     for handler in @handlers['always']?[event] ? []

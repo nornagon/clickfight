@@ -2,18 +2,35 @@
 min = Math.min
 max = Math.max
 
+circleSegmentQuery = (shape, center, r, a, b, info) ->
+  # offset the line to be relative to the circle
+  a = v.sub a, center
+  b = v.sub b, center
+  
+  qa = v.dot(a, a) - 2*v.dot(a, b) + v.dot(b, b)
+  qb = -2*v.dot(a, a) + 2*v.dot(a, b)
+  qc = v.dot(a, a) - r*r
+  
+  det = qb*qb - 4*qa*qc
+  
+  if det >= 0
+    t = (-qb - Math.sqrt(det))/(2*qa)
+    if 0 <= t and t <= 1
+      return {shape, t, n:v.normalize(v.lerp(a, b, t))}
+
 exports.circle = (x, y, radius) ->
   c: v(x,y) # center
   tc: null # transformed center
   r: radius # radius
   type: 'circle'
 
-  update: (tpos, trot) ->
+  cachePos: (tpos, trot) ->
     @tc = v.add tpos, v.rotate(@c, trot)
     @bb_l = @tc.x - @r
     @bb_r = @tc.x + @r
     @bb_b = @tc.y - @r
     @bb_t = @tc.y + @r
+    this
 
   draw: ->
     ctx.fillStyle = @owner.color or 'green'
@@ -25,6 +42,110 @@ exports.circle = (x, y, radius) ->
     ctx.fill()
     ctx.stroke()
 
+  # Test if a point lies within a shape.
+  pointQuery: (p) ->
+    delta = v.sub p, @tc
+    distsq = v.lengthsq delta
+    
+    if distsq < @r * @r
+      shape: this
+      d: r - dist
+      n: v.mult delta, 1/dist
+
+  segmentQuery: (a, b) ->
+    circleSegmentQuery this, @tc, @r, a, b
+
+bbContainsVect2 = (l, b, r, t, v) -> l <= v.x && r >= v.x && b <= v.y && t >= v.y
+
+# Line segment from a to b with width r
+exports.segment = (x1, y1, x2, y2, r) ->
+  a = v x1, y1
+  b = v x2, y2
+
+  a: a
+  b: b
+  r: r
+  n: v.perp v.normalize v.sub b, a
+  type: 'segment'
+  cachePos: (tpos, trot) ->
+    @ta = v.add tpos, v.rotate @a, trot
+    @tb = v.add tpos, v.rotate @b, trot
+    @tn = v.rotate @n, trot
+
+    # Update the bounding box
+    if @ta.x < @tb.x
+      l = @ta.x
+      r = @tb.x
+    else
+      l = @tb.x
+      r = @ta.x
+
+    if @ta.y < @tb.y
+      b = @ta.y
+      t = @tb.y
+    else
+      b = @tb.y
+      t = @ta.y
+
+    @bb_l = l - @r
+    @bb_b = b - @r
+    @bb_r = r + @r
+    @bb_t = t + @r
+    this
+
+  draw: ->
+    ctx.lineCap = 'round'
+    ctx.lineWidth = max 1, @r * 2
+    ctx.strokeStyle = @owner.color or 'black'
+    ctx.beginPath()
+    ctx.moveTo @ta.x, @ta.y
+    ctx.lineTo @tb.x, @tb.y
+    ctx.stroke()
+
+  pointQuery: (p) ->
+    return unless bbContainsVect2 @bb_l, @bb_b, @bb_r, @bb_t, p
+  
+    a = @ta
+    b = @tb
+    
+    seg_delta = v.sub b, a
+    closest_t = v.clamp01 v.dot(seg_delta, v.sub(p, a))/v.lengthsq(seg_delta)
+    closest = v.add a, v.mult(seg_delta, closest_t)
+
+    delta = v.sub p, closest
+    distsq = v.lengthsq delta
+
+    if distsq < @r*@r
+      shape: this
+      d: @r - dist
+      n: v.mult(delta, 1/dist)
+
+  segmentQuery: (a, b) ->
+    d = v.dot v.sub(this.ta, a), @tn
+    
+    flipped_n = if d > 0 then v.neg(@tn) else @tn
+    n_offset = v.sub v.mult(flipped_n, @r), a
+    
+    seg_a = v.add @ta, n_offset
+    seg_b = v.add @tb, n_offset
+    delta = v.sub b, a
+    
+    if v.cross(delta, seg_a)*v.cross(delta, seg_b) <= 0
+      d_offset = d + if d > 0 then -@r else @r
+      ad = -d_offset
+      bd = v.dot(delta, @tn) - d_offset
+      
+      if ad*bd < 0
+        {shape:this, t:ad/(ad - bd), n:flipped_n}
+
+    else if @r != 0
+      info1 = circleSegmentQuery this, this.ta, this.r, a, b
+      info2 = circleSegmentQuery this, this.tb, this.r, a, b
+      
+      if info1
+        if info2 && info2.t < info1.t then info2 else info1
+      else
+        return info2
 
 
 Axis = (@n, @d) ->
@@ -102,18 +223,18 @@ transformAxes = (poly, p, rot) ->
     dst[i].n = n
     dst[i].d = v.dot(p, n) + src[i].d
 
-exports.updatePoly = updatePoly = (poly, p, rot) ->
-  rot = v.forangle rot if typeof rot is 'number'
-  transformVerts poly, p, rot
-  transformAxes poly, p, rot
-
-
 exports.poly = poly = (x, y, verts) ->
   p =
     verts: verts
-    update: (tpos, trot) ->
+    cachePos: (tpos, trot) ->
+      trot = v.forangle trot if typeof trot is 'number'
+
       offs = v.rotate v(x, y), trot
-      updatePoly this, v(tpos.x + offs.x, tpos.y + offs.y), trot
+      p = v(tpos.x + offs.x, tpos.y + offs.y)
+
+      transformVerts this, p, trot
+      transformAxes this, p, trot
+      this
     draw: ->
       ctx.fillStyle = @owner.color or 'green'
       ctx.strokeStyle = 'black'
@@ -129,36 +250,57 @@ exports.poly = poly = (x, y, verts) ->
       ctx.fill()
       ctx.stroke()
     type: 'poly'
+    pointQuery: (p) ->
+      return unless bbContainsVect2 @bb_l, @bb_b, @bb_r, @bb_t, p
+      
+      info = {shape:this}
+      
+      axes = @tAxes
+      for i in [0...axes.length]
+        n = axes[i].n
+        dist = axes[i].d - v.dot(n, p)
+        
+        if dist < 0
+          return
+        else if dist < info.d
+          info.d = dist
+          info.n = n
+      
+      return info
+
+    segmentQuery: (a, b) ->
+      axes = @tAxes
+      verts = @tVerts
+      len = axes.length * 2
+      
+      for i in [0...axes.length]
+        n = axes[i].n
+        an = v.dot a, n
+        continue if axes[i].d > an
+        
+        bn = v.dot b, n
+        t = (axes[i].d - an)/(bn - an)
+        continue if t < 0 or 1 < t
+        
+        point = v.lerp a, b, t
+        dt = -v.cross n, point
+        dtMin = -v.cross2 n.x, n.y, verts[i*2], verts[i*2+1]
+        dtMax = -v.cross2 n.x, n.y, verts[(i*2+2)%len], verts[(i*2+3)%len]
+
+        if dtMin <= dt && dt <= dtMax
+          return {shape:this, t, n}
 
   setupPoly p
 
   p
 
-# Line segment from a to b with width r
-exports.segment = (x1, y1, x2, y2, r) ->
-  a = v x1, y1
-  b = v x2, y2
-
-  a: a
-  b: b
-  r: r
-  n: v.perp v.normalize v.sub b, a
-  type: 'segment'
-  update: (tpos, trot) ->
-    @ta = v.add tpos, v.rotate @a, trot
-    @tb = v.add tpos, v.rotate @b, trot
-    @tn = v.rotate @n, trot
-  draw: ->
-    ctx.lineCap = 'round'
-    ctx.lineWidth = max 1, @r * 2
-    ctx.strokeStyle = @owner.color or 'black'
-    ctx.beginPath()
-    ctx.moveTo @ta.x, @ta.y
-    ctx.lineTo @tb.x, @tb.y
-    ctx.stroke()
-
 exports.rect = (x, y, w, h) -> poly x, y, [0, 0,  0, h,  w, h,  w, 0]
 
+swap = (collisions) ->
+  for c in collisions
+    c.n.x *= -1
+    c.n.y *= -1
+  collisions
 
 exports.collide = (a, b) ->
   switch a.type
@@ -173,7 +315,7 @@ exports.collide = (a, b) ->
     when 'segment'
       switch b.type
         when 'circle'
-          circle2segment b, a
+          swap circle2segment b, a
         when 'poly'
           segment2poly a, b
         when 'segment'
@@ -181,10 +323,10 @@ exports.collide = (a, b) ->
     when 'poly'
       switch b.type
         when 'circle'
-          circle2poly b, a
+          swap circle2poly b, a
         when 'poly'
           poly2poly a, b
         when 'segment'
-          segment2poly b, a
+          swap segment2poly b, a
 
 

@@ -7,10 +7,14 @@ boss = (room) ->
   head.radius = 160
   head.x = room.width/2
   head.y = room.height/2
+  head.group = 'boss'
+  head.layers = 1
 
   head.addShape circle(0, 0, head.radius)
   makeArm = (angle) ->
     a = head.addEntity 'arm'
+    a.group = 'boss'
+    a.layers = 1
     w = 700
     h = 100
     a.x = 0
@@ -53,6 +57,14 @@ boss = (room) ->
     
     a
   arms = (makeArm(i*Math.PI/2) for i in [0...4])
+
+  wall = room.addEntity 'wall'
+  wall.layers = 2
+  wall.x = wall.y = 0
+  wall.addStaticShape segment 400, 0, 300, 200, 5
+  wall.addStaticShape segment 400, 500, 100, 100, 5
+
+  wall.on 'draw', -> s.draw() for s in @shapes
   
   ## ArmSlam - a phase where Crux slams the ground under its four giant arms
   ## while defending itself with an electric shell

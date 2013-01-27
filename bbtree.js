@@ -623,6 +623,8 @@ BBTree.prototype.remove = function(obj)
 {
   var leaf = this.leaves[obj._id];
 
+  if (!leaf) return;
+
   delete this.leaves[obj._id];
   this.root = subtreeRemove(this.root, leaf, this);
   this.count--;

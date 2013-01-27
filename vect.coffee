@@ -23,9 +23,11 @@ v.perp = (a) -> new Vect -a.y, a.x
 v.normalize = (a) -> v.mult a, 1/v.len(a)
 v.rotate = (v1, v2) -> new Vect v1.x*v2.x - v1.y*v2.y, v1.x*v2.y + v1.y*v2.x
 v.rotate2 = (x, y, a) -> new Vect x*a.x - y*a.y, x*a.y + y*a.x
+v.unrotate = (v1, v2) -> new Vect v1.x*v2.x + v1.y*v2.y, v1.y*v2.x - v1.x*v2.y
 v.forangle = (a) -> new Vect Math.cos(a), Math.sin(a)
 v.clamp = (f, minv, maxv) -> min(max(f, minv), maxv)
 v.clamp01 = (f) -> min(max(f, 0), 1)
+v.lerp = (v1, v2, t) -> v(v1.x * (1-t) + v2.x * t, v1.y * (1-t) + v2.y * t)
 
 v.zero = new Vect(0,0)
 
