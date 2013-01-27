@@ -1,4 +1,5 @@
 window.dt = 16 # hm
+
 class Entity
   constructor: (@name) ->
     @children = []
@@ -10,8 +11,10 @@ class Entity
     # phase that events will bind to. overridden sometimes.
     @targetPhase = 'always'
     @angle = 0
-    @_touching = []
+    @touching = []
     @layers = ~0
+
+    @remove = no
 
   addEntity: (name) ->
     @children.push e = new Entity name
@@ -35,6 +38,18 @@ class Entity
 
   update: ->
     @trigger 'update'
+
+    if @target
+      speed = @targetSpeed * dt / 1000
+
+      dest = if @target.constructor is Entity then @target.tpos else @target
+      pos = v(dest.x - @tpos.x, dest.y - @tpos.y)
+      len = v.len pos
+      delta = v.mult pos, Math.min(speed/len, 1)
+      delta = v.unrotate delta, @parent.trot
+      @x += delta.x
+      @y += delta.y
+
     for i,t of @timers
       t.t += dt
       if t.t >= t.time
@@ -49,8 +64,8 @@ class Entity
 
     c.update() for c in @children
 
-    (c.trigger 'removed' for c in @children when c.dead)
-    @children = (c for c in @children when not c.dead)
+    (c.trigger 'removed' for c in @children when c.remove)
+    @children = (c for c in @children when not c.remove)
 
   draw: ->
     ctx.save()
@@ -105,7 +120,7 @@ class Entity
         if broken then return
         nextEventID = @after timeFor(opts.interval), ->
           fn.call @, again
-      nextEventID = @after timeFor(opts.initial), ->
+      nextEventID = @after timeFor(opts.initial or opts.interval), ->
         fn.call @, again
       @once 'exit', ->
         throw new Error if broken
@@ -161,14 +176,27 @@ class Entity
     a.targetPhase = name
     a
 
-  touching: (other) -> other in @_touching
+  isTouching: (other) -> other in @touching
 
   damage: (amt) ->
-    if typeof @hp is 'number' and @invincible != true
-      @hp -= amt
+    if typeof @hp is 'number' and @invincible != true and !@dead
+      @hp = Math.max @hp - amt, 0
       if @hp <= 0
         @dead = true
+        @trigger 'death'
+
+  destroy: ->
+    @remove = yes
 
   dist: (other) -> v.len v.sub @tpos, other.tpos
+
+  moveTowards: (@target, @targetSpeed) ->
+
+  beam: -> {fire:->}
+
+  randomLivePlayer: ->
+    @players[randInt @players.length]
+
+
 
 window.Entity = Entity

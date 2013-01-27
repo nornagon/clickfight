@@ -15,6 +15,8 @@ room.time = 0
 
 players = {}
 
+randInt = (max) -> Math.floor Math.random() * max
+
 staticIndex = new BBTree()
 dynamicIndex = new BBTree staticIndex
 
@@ -87,7 +89,7 @@ do ->
         swipe.on 'update', ->
           @attackTime += dt
           if @attackTime >= 250
-            @dead = yes
+            @remove = yes
         swipe.draw = ->
           ctx.fillStyle = 'red'
           ctx.beginPath()
@@ -136,6 +138,10 @@ do ->
         d = v.unrotate v(@dx, @dy), @trot
         ctx.fillRect d.x - 5, d.y - 5, 10, 10
 
+    player.on 'death', ->
+      @remove = yes
+      room.players = (p for p in room.players when !p.dead)
+
     room.players.push player
 
 
@@ -182,8 +188,9 @@ update = ->
   room.update()
 
   room.forAll (e) ->
-    e._touching.length = 0
-    e.color = 'blue'
+    e.touching.length = 0
+    e.color = 'blue' if drawShapes
+      
 
   dynamicIndex.reindexQuery (a, b) ->
     ae = a.owner
@@ -201,10 +208,11 @@ update = ->
     ae = a.owner
     be = b.owner
 
-    ae._touching.push b.owner
-    be._touching.push a.owner
+    ae.touching.push b.owner
+    be.touching.push a.owner
   
-    ae.color = be.color = 'red'
+    if drawShapes
+      ae.color = be.color = 'red'
 
     switch
       when ae.name == 'player' and be.name == 'wall'
@@ -234,6 +242,7 @@ mousemove = (e) ->
   players[1].dy += e.webkitMovementY
 
 mousedown = (e) ->
+  #console.log players[1].x, players[1].y
   if e.button is 0
     players[1].attack()
   else if e.button is 2

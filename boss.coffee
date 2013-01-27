@@ -1,6 +1,50 @@
 ## Crux, a cross shaped boss who descends on a city, slamming it with its
 ## four giant arms. It also regenerates its limbs and uses lightning attacks
 
+###
+        @after 100, ->
+          shapeQuery circle(@x, @y, 30), (e) =>
+            return if e is this
+            #return if e.name is 'player'
+            e.damage 1
+###
+
+walls = [
+  [300, 20, 150, 20]
+  [150, 20, 150, 120]
+  [150, 120, 250, 120]
+
+  [450, 200, 290, 200]
+  [290, 200, 290, 300]
+
+  [510, 0, 510, 170]
+
+  [100, 200, 200, 400]
+
+  [600, 100, 740, 140]
+  [650, 140, 710, 300]
+
+  [800, 100, 980, 100]
+  [980, 100, 980, 200]
+  [980, 200, 800, 200]
+  [800, 200, 800, 100]
+
+  [650, 400, 900, 400]
+
+  [830, 440, 820, 560]
+  [820, 560, 970, 540]
+
+
+  [40, 495, 110, 340]
+  [110, 340, 205, 496]
+  [205, 496, 280, 410]
+
+  [380, 600, 460, 600]
+  [460, 600, 470, 768]
+  [540, 520, 540, 640]
+  [540, 640, 675, 640]
+]
+
 boss = (room) ->
   # TODO: Add a bunch of ruins so that movement is hindered
   head = room.addEntity 'head'
@@ -21,7 +65,7 @@ boss = (room) ->
     a.y = 0#-h/2
     a.addShape rect(h/2, -h/2, w, h)
     a.angle = angle
-    a.hp = 10
+    a.hp = 1
 
     a.phase('ArmSlam').phaseTimer { interval: [1000,3000], initial: [3000,5000] }, (again) ->
       @telegraphing = true
@@ -32,10 +76,9 @@ boss = (room) ->
         delete @color
         # damage all enemies in hitbox
         for p in room.players
-          #console.log p, @_touching
-          if @touching p
+          if @isTouching p
             p.damage 2
-        again() 
+        again()
     
     a.on 'draw', ->
       ctx.fillStyle = if @telegraphing then 'yellow' else if @damaged then 'grey' else 'red'
@@ -56,19 +99,18 @@ boss = (room) ->
         ctx.fill()
     
     a
-  arms = (makeArm(i*Math.PI/2) for i in [0...4])
+  #arms = (makeArm(i*Math.PI/2) for i in [0...4])
 
   wall = room.addEntity 'wall'
   wall.layers = 2
   wall.x = wall.y = 0
-  wall.addStaticShape segment 400, 0, 300, 200, 5
-  wall.addStaticShape segment 400, 500, 100, 100, 5
+  wall.color = '#444'
+  wall.addStaticShape segment w[0], w[1], w[2], w[3], 2 for w in walls
 
   wall.on 'draw', -> s.draw() for s in @shapes
   
   ## ArmSlam - a phase where Crux slams the ground under its four giant arms
   ## while defending itself with an electric shell
-
   
   head.phase('ArmSlam').on 'draw', ->
     ctx.beginPath()
@@ -81,8 +123,9 @@ boss = (room) ->
 
   # TODO: Change to making dead arms if necessary
   head.phase('ArmSlam').on 'enter', ->
-    ratio = @health/@maxHealth
-    for a in arms
+    #ratio = @health/@maxHealth
+    @arms = (makeArm(i*Math.PI/2) for i in [0...4])
+    for a in @arms
       a.invincible = false
     
     #if ratio > 0.75
@@ -94,14 +137,15 @@ boss = (room) ->
     
     head.invincible = true
     head.lastPulse = null
+    @target = null
     
-    for a in arms
+    for a in @arms
       a.on 'death', ->
         room.enterPhase 'Retract'
       
-    for a in arms
-      a.phase('Retract').on 'enter',  ->
-        a.destroy()
+  head.phase('Retract').on 'enter', ->
+    for a in @arms
+      a.destroy()
 
   head.phase('ArmSlam').on 'update', ->
     head.angle += Math.PI/20 * dt/1000
@@ -116,8 +160,8 @@ boss = (room) ->
       for p in room.players
         if p.dist(head) <= head.radius + 15
           p.damage 1
-    for e in @_touching
-      if e.type is 'player'
+    for e in @touching
+      if e.name is 'player'
         pulse()
         @lastPulse = room.time
 
@@ -129,9 +173,9 @@ boss = (room) ->
 
   head.phase('ArmHeal').on 'enter', ->
     head.invincible = true
-    a.invincible = true for a in arms
-    maxArmHealth = Math.max.apply(Math, (a.hp for a in arms))
-    a.hp = maxArmHealth for a in arms
+    a.invincible = true for a in @arms
+    maxArmHealth = Math.max.apply(Math, (a.hp for a in @arms))
+    a.hp = maxArmHealth for a in @arms
     play 'heal.wav'
     head.after 3000, ->
       room.enterPhase 'ArmSlam'
@@ -143,12 +187,21 @@ boss = (room) ->
     ctx.fill()
     ctx.strokeStyle = 'black'
     ctx.lineWidth = 2
-    ctx.stroke()      
+    ctx.stroke()
 
   ## Retract - Crux reacts to losing an arm by retracting them all
   
   room.phase('Retract').on 'enter', ->
     play 'retract.wav'
+
+  head.phase('Retract').on 'draw', ->
+    ctx.beginPath()
+    ctx.arc 0, 0, @radius, 0, Math.PI*2
+    ctx.fillStyle = 'cyan'
+    ctx.fill()
+    ctx.strokeStyle = 'black'
+    ctx.lineWidth = 2
+    ctx.stroke()
 
   head.phase('Retract').phaseTimer { initial: 3000 }, ->
     room.enterPhase 'HeadChase'
@@ -158,12 +211,25 @@ boss = (room) ->
   
   head.phase('HeadChase').on 'enter', ->
     head.target = room.randomLivePlayer()
-    head.boltsFired = 0;
+    head.boltsFired = 0
     @invincible = false
 
+  head.phase('HeadChase').on 'draw', ->
+    ctx.beginPath()
+    ctx.arc 0, 0, @radius, 0, Math.PI*2
+    ctx.fillStyle = 'teal'
+    ctx.fill()
+    ctx.strokeStyle = 'black'
+    ctx.lineWidth = 2
+    ctx.stroke()
+
   head.phase('HeadChase').on 'update', ->
-    if @boltsFired >= 2
-      head.target = room.differentRandomLivePlayer()
+    if @boltsFired >= 2 and room.players.length > 1
+      loop
+        target = room.randomLivePlayer()
+        if @target isnt target
+          @target = target
+          break
       @boltsFired = 0
     head.moveTowards(@target, 100) #pixels per second
     
@@ -175,13 +241,13 @@ boss = (room) ->
       for p in room.players
         if p.dist(head) <= head.radius + 15
           p.damage 1
-      bolt = head.beam(@x, @y, target.x, target.y) #source, target
+      bolt = head.beam(@x, @y, @target.x, @target.y) #source, target
       bolt.collidesWith = ['wall', 'player']
       bolt.fire()
       head.boltsFired++
       again()
 
-  head.phase('HeadChase').phaseTimer { interval: 40000 }, ->
+  head.phase('HeadChase').phaseTimer { interval: 20000 }, ->
     room.enterPhase 'Expand'
     
   ## Expand - With healed (or permanently damaged) arms brought back out
@@ -189,13 +255,18 @@ boss = (room) ->
   
   head.phase('Expand').on 'enter', ->
     head.invincible = true
-    head.target = [room.width/2, room.height/2 ]
+    head.moveTowards {x:room.width/2, y:room.height/2}, 250
     play 'expand.wav'
-    arms = (makeArm(i*Math.PI/2) for i in [0...4])
 
-  head.phase('Expand').on 'update', ->
-    head.moveTowards(@target, 500)
-  
+  head.phase('Expand').on 'draw', ->
+    ctx.beginPath()
+    ctx.arc 0, 0, @radius, 0, Math.PI*2
+    ctx.fillStyle = 'orange'
+    ctx.fill()
+    ctx.strokeStyle = 'black'
+    ctx.lineWidth = 2
+    ctx.stroke()
+
   head.phase('Expand').phaseTimer { initial: 3000 }, ->
     room.enterPhase 'ArmSlam'
   
