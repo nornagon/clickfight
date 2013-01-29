@@ -98,8 +98,12 @@ boss = (room) ->
         ctx.arc 75+i*25, Math.sin(i)*15, 10, 0, Math.PI*2
         ctx.fill()
     
+    a.on 'death', ->
+      room.enterPhase 'Retract'
+    
     a
-  #arms = (makeArm(i*Math.PI/2) for i in [0...4])
+    
+  arms = null
 
   wall = room.addEntity 'wall'
   wall.layers = 2
@@ -112,10 +116,10 @@ boss = (room) ->
   ## ArmSlam - a phase where Crux slams the ground under its four giant arms
   ## while defending itself with an electric shell
   
-  head.phase('ArmSlam').on 'draw', ->
+  head.on 'draw', ->
     ctx.beginPath()
     ctx.arc 0, 0, @radius, 0, Math.PI*2
-    ctx.fillStyle = 'red'
+    ctx.fillStyle = @color or 'red'
     ctx.fill()
     ctx.strokeStyle = 'black'
     ctx.lineWidth = 2
@@ -124,9 +128,11 @@ boss = (room) ->
   # TODO: Change to making dead arms if necessary
   head.phase('ArmSlam').on 'enter', ->
     #ratio = @health/@maxHealth
-    @arms = (makeArm(i*Math.PI/2) for i in [0...4])
-    for a in @arms
+    arms = (makeArm(i*Math.PI/2) for i in [0...4])
+    for a in arms
       a.invincible = false
+    
+    @color = 'red'
     
     #if ratio > 0.75
     #  arms = (makeArm(i*Math.PI/2) for i in [0...4])
@@ -135,36 +141,27 @@ boss = (room) ->
     #else if ratio > 0.25
     #else
     
-    head.invincible = true
-    head.lastPulse = null
+    @invincible = true
+    @lastPulse = 0
     @target = null
     
-    for a in @arms
-      a.on 'death', ->
-        room.enterPhase 'Retract'
-      
   head.phase('Retract').on 'enter', ->
-    for a in @arms
+    for a in arms
       a.destroy()
+    arms.length = 0
 
   head.phase('ArmSlam').on 'update', ->
+    # Always rotate the boss
     head.angle += Math.PI/20 * dt/1000
-
-  # pulse
-  head.phase('ArmSlam').on 'update', ->
-    return unless @lastPulse <= room.time - 500
-    pulse = =>
+    
+    # If the pulse cooldown is up and a person is in collision radius with Crux
+    # then fire a pulse to hit everyone nearby
+    if @lastPulse < room.time - 500 and @isTouching 'player'
+      @lastPulse = room.time
       # find all players within some radius
       # deal them 1 damage
       play 'pulse.wav'
-      for p in room.players
-        if p.dist(head) <= head.radius + 15
-          p.damage 1
-    for e in @touching
-      if e.name is 'player'
-        pulse()
-        @lastPulse = room.time
-
+      p.damage 1 for p in @touching when p.name is 'player'
 
   head.phase('ArmSlam').phaseTimer { initial: 10000 }, ->
     room.enterPhase 'ArmHeal'
@@ -173,35 +170,21 @@ boss = (room) ->
 
   head.phase('ArmHeal').on 'enter', ->
     head.invincible = true
-    a.invincible = true for a in @arms
-    maxArmHealth = Math.max.apply(Math, (a.hp for a in @arms))
-    a.hp = maxArmHealth for a in @arms
+    head.color = 'purple'
+    a.invincible = true for a in arms
+    maxArmHealth = Math.max.apply(Math, (a.hp for a in arms))
+    a.hp = maxArmHealth for a in arms
     play 'heal.wav'
     head.after 3000, ->
       room.enterPhase 'ArmSlam'
-
-  head.phase('ArmHeal').on 'draw', ->
-    ctx.beginPath()
-    ctx.arc 0, 0, @radius, 0, Math.PI*2
-    ctx.fillStyle = 'purple'
-    ctx.fill()
-    ctx.strokeStyle = 'black'
-    ctx.lineWidth = 2
-    ctx.stroke()
 
   ## Retract - Crux reacts to losing an arm by retracting them all
   
   room.phase('Retract').on 'enter', ->
     play 'retract.wav'
 
-  head.phase('Retract').on 'draw', ->
-    ctx.beginPath()
-    ctx.arc 0, 0, @radius, 0, Math.PI*2
-    ctx.fillStyle = 'cyan'
-    ctx.fill()
-    ctx.strokeStyle = 'black'
-    ctx.lineWidth = 2
-    ctx.stroke()
+  head.phase('Retract').on 'enter', ->
+    @color = 'cyan'
 
   head.phase('Retract').phaseTimer { initial: 3000 }, ->
     room.enterPhase 'HeadChase'
@@ -213,15 +196,7 @@ boss = (room) ->
     head.target = room.randomLivePlayer()
     head.boltsFired = 0
     @invincible = false
-
-  head.phase('HeadChase').on 'draw', ->
-    ctx.beginPath()
-    ctx.arc 0, 0, @radius, 0, Math.PI*2
-    ctx.fillStyle = 'teal'
-    ctx.fill()
-    ctx.strokeStyle = 'black'
-    ctx.lineWidth = 2
-    ctx.stroke()
+    @color = 'teal'
 
   head.phase('HeadChase').on 'update', ->
     if @boltsFired >= 2 and room.players.length > 1
@@ -232,11 +207,13 @@ boss = (room) ->
           break
       @boltsFired = 0
     head.moveTowards(@target, 100) #pixels per second
-    
+  
   head.phase('HeadChase').phaseTimer { interval: [3000,5000], initial: [3000,5000] }, (again) ->
     @telegraphing = true
-    @after 250, ->
+    @color = 'cyan'
+    @after 700, ->
       @telegraphing = false
+      @color = 'teal'
       play 'pulse.wav'
       for p in room.players
         if p.dist(head) <= head.radius + 15
@@ -255,22 +232,11 @@ boss = (room) ->
   
   head.phase('Expand').on 'enter', ->
     head.invincible = true
-    head.moveTowards {x:room.width/2, y:room.height/2}, 250
+    @color = 'orange'
+    head.moveTowards {x:room.width/2, y:room.height/2}, 200
     play 'expand.wav'
-
-  head.phase('Expand').on 'draw', ->
-    ctx.beginPath()
-    ctx.arc 0, 0, @radius, 0, Math.PI*2
-    ctx.fillStyle = 'orange'
-    ctx.fill()
-    ctx.strokeStyle = 'black'
-    ctx.lineWidth = 2
-    ctx.stroke()
 
   head.phase('Expand').phaseTimer { initial: 3000 }, ->
     room.enterPhase 'ArmSlam'
   
   room.enterPhase 'ArmSlam'
-
-
-# while true; do curl -s http://sharejs.org/doc/code:1q6nt3i > boss-temp.coffee && mv boss-temp.coffee boss.coffee; sleep 1; done

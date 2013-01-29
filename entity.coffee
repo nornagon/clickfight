@@ -164,6 +164,7 @@ class Entity
       'always'
 
   enterPhase: (phase) ->
+    return if phase is @currentPhase_
     @forAll (e) ->
       e.trigger 'exit'
     @currentPhase_ = phase
@@ -176,7 +177,13 @@ class Entity
     a.targetPhase = name
     a
 
-  isTouching: (other) -> other in @touching
+  isTouching: (other) ->
+    if typeof other is 'string'
+      for o in @touching
+        return o if o.name is other
+      false
+    else
+      other in @touching
 
   damage: (amt) ->
     if typeof @hp is 'number' and @invincible != true and !@dead
