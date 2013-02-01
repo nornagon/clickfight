@@ -28,6 +28,7 @@ v.forangle = (a) -> new Vect Math.cos(a), Math.sin(a)
 v.clamp = (f, minv, maxv) -> min(max(f, minv), maxv)
 v.clamp01 = (f) -> min(max(f, 0), 1)
 v.lerp = (v1, v2, t) -> v(v1.x * (1-t) + v2.x * t, v1.y * (1-t) + v2.y * t)
+v.lerp2 = (x1, x2, t) -> x1 * (1-t) + x2 * t
 
 v.zero = new Vect(0,0)
 

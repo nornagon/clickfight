@@ -10,10 +10,10 @@ app.use express.static("#{__dirname}/")
 port = 8123
 
 # How frequently (in ms) should we advance the world
-dt = 16
+dt = 16 / 1000
 snapshotDelay = 3
 bytesSent = bytesReceived = 0
-frame = 1
+frameCount = 1
 
 WebSocketServer = require('ws').Server
 wss = new WebSocketServer {server}
@@ -29,33 +29,46 @@ pendingAdds = []
 pendingRemoves = []
 nextId = 1000
 
-setInterval ->
-  frame++
+send = (c, msg) ->
+  msg = JSON.stringify msg
+  c.send msg
+  bytesSent += msg.length
 
-  if frame % snapshotDelay is 0
+idealTime = Date.now()
+frame = ->
+  frameCount++
+
+  if frameCount % snapshotDelay is 0
     add = {}
     add[id] = players[id] for id in pendingAdds
 
     for c in wss.clients
       if c.needsSnapshot
-        c.send JSON.stringify {t:'s', yourid:c.id, entities:players}
+        send c, {t:'s', yourid:c.id, entities:players, f:frameCount}
         c.needsSnapshot = false
       else
         update = {}
-        update[id] = {x:p.x, y:p.y} for id, p of players when p.dirty
+        update[id] = {x:p.x, y:p.y} for id, p of players when p.dirty and id isnt c.id
 
-        c.send JSON.stringify {t:'u', update, add, remove:pendingRemoves}
+        packet =
+          t:'u'
+          u:update
+          a:add if pendingAdds.length
+          r:pendingRemoves if pendingRemoves.length
+          f:frameCount
+
+        send c, packet
 
     pendingAdds.length = pendingRemoves.length = 0
     p.dirty = false for id, p of players
 
-, dt
+  idealTime += dt * 1000
+  setTimeout frame, idealTime - Date.now()
+
+frame()
 
 wss.on 'connection', (c) ->
-  send = (msg) ->
-    c.send JSON.stringify msg
-
-  id = c.id = nextId++
+  id = c.id = (nextId++).toString()
   players[id] =
     x: Math.random() * 1024
     y: Math.random() * 768

@@ -5,8 +5,6 @@ canvas.height = 768
 
 ctx = canvas.getContext '2d'
 
-clamp = (x, min, max) -> Math.max(Math.min(x, max), min)
-
 ws = new WebSocket "ws://#{window.location.host}"
 #ws.binaryType = 'arraybuffer'
 
@@ -20,16 +18,14 @@ avatar = null
 # Frame count is measured in dt units. Eg, frame 62 is 1 second after frame 0.
 frame = 0
 
-# The world is always lerping between prevSnapshot and pendingSnapshots[0]. The world pauses
+# The world is always lerping between lerpA and lerpB. The world pauses when lerpB is undefined.
 # in frames after pendingSnapshots[0]
-prevSnapshot = {frame:-5, data:{}}
-pendingSnapshots = []
+lerpA = lerpB = null
+pendingUpdates = []
+lastReceivedUpdate = null
 
 # World update frequency in seconds. 62.5fps.
-dt = 16 / 1000
-
-requestAnimationFrame = window.requestAnimationFrame or window.mozRequestAnimationFrame or
-                        window.webkitRequestAnimationFrame or window.msRequestAnimationFrame
+serverDt = 16 / 1000
 
 # Is a redraw required?
 dirty = false
@@ -37,10 +33,56 @@ dirty = false
 locked = false
 
 fps = 0
+serverFrame = 0
+renderFramesAhead = 0.1 / serverDt
+
+seq = 0
+
+cycleUpdates = ->
+  throw new Error 'Ahead of server. NOT OK.' unless pendingUpdates.length
+
+  lerpA = lerpB
+  lerpB = pendingUpdates.shift()
+
+  delete entities[id] for id in lerpA.remove if lerpA.remove
+  entities[id] = e for id, e of lerpA.add if lerpA.add
 
 update = (dt) ->
   if dt
-    fps = 0.7*fps + 0.3*1000 / dt
+    fps = 0.7*fps + 0.3 / dt
+
+  return unless lerpA and lerpB
+
+  serverFrame += dt / serverDt
+
+  # Render frame is 100ms behind
+  renderFrame = serverFrame - renderFramesAhead
+
+  while renderFrame > lerpB.f
+    if pendingUpdates.length == 0
+      serverFrame = lerpB.f + renderFramesAhead
+      renderFrame = lerpB.f
+
+      seq = (seq + 1) % 5
+      #console.log 'out of data'
+      #console.log lerpA.f, lerpB.f, serverFrame, Math.floor(serverFrame - 0.1/serverDt)
+    else
+      cycleUpdates()
+
+  #console.log lerpA.f, lerpB.f, Math.floor renderFrame if Math.random() < 0.01
+
+
+  lerpPoint = Math.max 0, (renderFrame - lerpA.f) / (lerpB.f - lerpA.f)
+
+  for id, d1 of lerpA.data when id isnt avatar.id and d1 isnt null
+    d2 = lerpB.data[id]
+    continue if d2 is null # the object is about to be removed.
+
+    e = entities[id]
+
+    e.x = v.lerp2 d1.x, d2.x, lerpPoint
+    e.y = v.lerp2 d1.y, d2.y, lerpPoint
+
 
   if avatar
     if !locked
@@ -52,10 +94,10 @@ update = (dt) ->
       avatar.y += avatar.dy
       avatar.dx = avatar.dy = 0
 
-      avatar.x = clamp avatar.x, 150, canvas.width-150
-      avatar.y = clamp avatar.y, 150, canvas.height-150
-      #avatar.x = clamp avatar.x, 0, canvas.width
-      #avatar.y = clamp avatar.y, 0, canvas.height
+      avatar.x = v.clamp avatar.x, 150, canvas.width-150
+      avatar.y = v.clamp avatar.y, 150, canvas.height-150
+      #avatar.x = v.clamp avatar.x, 0, canvas.width
+      #avatar.y = v.clamp avatar.y, 0, canvas.height
       avatar.dirty = true
 
     if avatar.dirty
@@ -74,28 +116,42 @@ draw = ->
       ctx.fillStyle = if e is avatar then 'blue' else 'black'
       ctx.fillRect e.x-5, e.y-5, 10, 10
 
+    # FPS display
+    ctx.fillStyle = 'black'
+    ctx.font = "20px sans-serif"
+    ctx.textAlign = 'start'
+    ctx.fillText "FPS:", 30, 80
+    ctx.textAlign = 'end'
+    ctx.fillText Math.floor(10*fps)/10, 140, 80
+
+    ctx.fillStyle = 'red'
+    ctx.fillRect seq * 100, 0, 100, 100
   else
     ctx.fillStyle = 'white'
     ctx.fillRect 0, 0, canvas.width, canvas.height
 
-  ctx.fillStyle = 'black'
-  ctx.font = "20px sans-serif"
-  ctx.textAlign = 'start'
-  ctx.fillText "FPS:", 30, 80
-  ctx.textAlign = 'end'
-  ctx.fillText Math.floor(10*fps)/10, 140, 80
+raf = window.requestAnimationFrame or window.mozRequestAnimationFrame or
+        window.webkitRequestAnimationFrame or window.msRequestAnimationFrame
 
 oldT = 0
 frame = (t) ->
+  t = Date.now() # ... the high performance timer gets clock skew.
+  t /= 1000 # in seconds please.
   update t-oldT
   oldT = t
   draw()
-  requestAnimationFrame frame
+  raf frame
 
 frame 0
 
+ws.onclose = ->
+  entities = null
+  avatar = null
+
 ws.onmessage = (msg) ->
   msg = JSON.parse msg.data
+
+  copy = (e) -> {x:e.x, y:e.y}
 
   switch msg.t
     when 's'
@@ -103,12 +159,31 @@ ws.onmessage = (msg) ->
       avatar = entities[msg.yourid]
       avatar.id = msg.yourid
       avatar.dx = avatar.dy = 0
+      data = {}
+      data[id] = copy e for id, e of msg.entities
+      lerpA = lastReceivedUpdate = {f:msg.f, data}
+
+      serverFrame = msg.f
     when 'u'
-      delete entities[id] for id in msg.remove
-      entities[id] = e for id, e of msg.add
-      for id, data of msg.update
-        e = entities[id]
-        e[k] = v for k, v of data
+      #console.log JSON.stringify msg
+      data = {}
+      data[id] = null for id in msg.r if msg.r # Remove
+      data[id] = copy e for id, e of msg.a if msg.a # Add
+      data[id] = copy e for id, e of msg.u # Update
+      # & copy in anything else that hasn't been updated
+      data[id] = copy e for id, e of lastReceivedUpdate.data when data[id] is undefined and e
+ 
+      lastReceivedUpdate = upd = {f:msg.f, data, add:msg.a, remove:msg.r}
+      
+      if lerpB
+        pendingUpdates.push upd
+      else
+        lerpB = upd
+
+      #if msg.f > serverFrame
+      #  console.log 'catching up'
+
+      serverFrame = Math.max msg.f, serverFrame
     else
       console.log msg
 
