@@ -363,7 +363,7 @@ BBTree.prototype.collideStatic = function(staticIndex, func)
 
 var bbProximity = function(a, b)
 {
-  return Math.abs(a.bb_l + a.bb_r - b.bb_l - b.bb_r) + Math.abs(a.bb_b + b.bb_t - b.bb_b - b.bb_t);
+  return Math.abs(a.bb_l + a.bb_r - b.bb_l - b.bb_r) + Math.abs(a.bb_b + a.bb_t - b.bb_b - b.bb_t);
 };
 
 var subtreeInsert = function(subtree, leaf, tree)
