@@ -125,7 +125,7 @@ draw = ->
     ctx.fillText Math.floor(10*fps)/10, 140, 80
 
     ctx.fillStyle = 'red'
-    ctx.fillRect seq * 100, 0, 100, 100
+    ctx.fillRect seq * 100, 0, 100, 20
   else
     ctx.fillStyle = 'white'
     ctx.fillRect 0, 0, canvas.width, canvas.height

@@ -15,7 +15,7 @@ snapshotDelay = 3
 bytesSent = bytesReceived = 0
 frameCount = 1
 
-WebSocketServer = require('ws').Server
+{Server:WebSocketServer, OPEN:WSOPEN} = require('ws')
 wss = new WebSocketServer {server}
 
 #state = 'menu' # Big button in the middle to start. Other state = 'playing'.
@@ -31,8 +31,9 @@ nextId = 1000
 
 send = (c, msg) ->
   msg = JSON.stringify msg
-  c.send msg
-  bytesSent += msg.length
+  if c.readyState is WSOPEN
+    c.send msg
+    bytesSent += msg.length
 
 idealTime = Date.now()
 frame = ->
