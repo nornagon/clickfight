@@ -34,12 +34,15 @@ locked = false
 
 fps = 0
 serverFrame = 0
-renderFramesAhead = 0.1 / serverDt
+renderFramesAhead = 0.05 / serverDt
 
+serverFrameTarget = 0
 
+correction = false
 
 
 renderFrame = 0
+
 
 seq = 0
 
@@ -49,7 +52,19 @@ update = (dt) ->
 
   return unless lerpA and lerpB
 
-  serverFrame += dt / serverDt
+  dtInFrames = dt / serverDt
+
+  if Math.abs(serverFrame - serverFrameTarget) > 2
+    correction = true
+    if serverFrameTarget < serverFrame
+      dtInFrames *= 0.9
+    else if serverFrameTarget > serverFrame
+      dtInFrames *= 1.1
+  else
+    correction = false
+
+  serverFrameTarget += dt / serverDt
+  serverFrame += dtInFrames
 
   # Render frame is 100ms behind
   renderFrame = serverFrame - renderFramesAhead
@@ -125,8 +140,8 @@ draw = ->
     ctx.textAlign = 'end'
     ctx.fillText Math.floor(10*fps)/10, 140, 80
 
-    ctx.fillStyle = 'red'
-    ctx.fillRect seq * 100, 0, 100, 20
+    #ctx.fillStyle = 'red'
+    #ctx.fillRect seq * 100, 0, 100, 20
   else
     ctx.fillStyle = 'white'
     ctx.fillRect 0, 0, canvas.width, canvas.height
@@ -136,12 +151,16 @@ draw = ->
     #behind = (lastReceivedUpdate.f - lerpA.f) * serverDt
     #behind = (lastReceivedUpdate.f - lerpA.f) * serverDt
     behind = (lastReceivedUpdate.f - renderFrame) * serverDt
-    ctx.fillRect 100, 200, 1000*behind, 20
+    #behind = (serverFrameTarget - serverFrame) * serverDt
+    ctx.fillRect 100, 200, behind * 1000, 20
     ctx.strokeStyle = 'red'
     ctx.strokeRect 100, 200, 100, 20
     ctx.fillText "#{Math.floor (1000 * behind)} ms", 200, 190
     ctx.fillText "f #{pendingUpdates.length}", 200, 160
 
+  if correction
+    ctx.fillStyle = 'red'
+    ctx.fillRect 0,0,40,40
 
 raf = window.requestAnimationFrame or window.mozRequestAnimationFrame or
         window.webkitRequestAnimationFrame or window.msRequestAnimationFrame
@@ -186,17 +205,17 @@ ws.onmessage = (msg) ->
       # & copy in anything else that hasn't been updated
       data[id] = copy e for id, e of lastReceivedUpdate.data when data[id] is undefined and e
  
-      lastReceivedUpdate = upd = {f:msg.f, data, add:msg.a, remove:msg.r}
+      lastReceivedUpdate = f:msg.f, data:data, add:msg.a, remove:msg.r
       
       if lerpB
-        pendingUpdates.push upd
+        pendingUpdates.push lastReceivedUpdate
       else
-        lerpB = upd
+        lerpB = lastReceivedUpdate
 
       #if msg.f > serverFrame
       #  console.log 'catching up'
 
-      serverFrame = Math.min msg.f, serverFrame
+      serverFrameTarget = msg.f
     else
       console.log msg
 
