@@ -1,29 +1,36 @@
-window.dt = 16 # hm
+{dt} = require './misc'
+v = require './vect'
 
-class Entity
-  constructor: (@name) ->
+nextId = 1000
+
+module.exports = class Entity
+  constructor: (@type) ->
+    @id = nextId++
+    @angle = 0
     @children = []
+    @shapes = []
+    @remove = no
+    @dirty = true
+
+
     @dead = no
     @handlers = {}
     @timers = {}
     @nextTimerID = 1
-    @shapes = []
     # phase that events will bind to. overridden sometimes.
     @targetPhase = 'always'
-    @angle = 0
-    @touching = []
     @layers = ~0
 
-    @remove = no
-
-  addEntity: (name) ->
-    @children.push e = new Entity name
+  addEntity: (type) ->
+    @children.push e = new Entity type
+    e.room = @room
     e.parent = @
+    @room.onChildAdded e
     e
 
-  forAll: (fn) ->
+  each: (fn) ->
     fn(@)
-    c.forAll fn for c in @children
+    c.each fn for c in @children
 
   childOf: (entity) ->
     return true if @parent is entity or @parent?.childOf entity
@@ -36,11 +43,16 @@ class Entity
       @trot = v.rotate v.forangle(@angle), @parent.trot
       @tpos = v.add @parent.tpos, v.rotate2(@x, @y, @parent.trot)
 
+  removeInternal: ->
+    @trigger 'removed'
+    @each (e) -> e.trigger 'removed'
+    @room.onChildRemoved this
+
   update: ->
     @trigger 'update'
 
     if @target
-      speed = @targetSpeed * dt / 1000
+      speed = @targetSpeed * dt
 
       dest = if @target.constructor is Entity then @target.tpos else @target
       pos = v(dest.x - @tpos.x, dest.y - @tpos.y)
@@ -64,7 +76,8 @@ class Entity
 
     c.update() for c in @children
 
-    (c.trigger 'removed' for c in @children when c.remove)
+    c.removeInternal() for c in @children when c.remove
+
     @children = (c for c in @children when not c.remove)
 
   draw: ->
@@ -180,7 +193,7 @@ class Entity
   isTouching: (other) ->
     if typeof other is 'string'
       for o in @touching
-        return o if o.name is other
+        return o if o.type is other
       false
     else
       other in @touching
@@ -204,6 +217,3 @@ class Entity
   randomLivePlayer: ->
     @players[randInt @players.length]
 
-
-
-window.Entity = Entity

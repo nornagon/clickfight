@@ -1,4 +1,3 @@
-
 canvas = document.getElementsByTagName('canvas')[0]
 canvas.width = 1024
 canvas.height = 768
@@ -35,16 +34,10 @@ locked = false
 fps = 0
 serverFrame = 0
 renderFramesAhead = 0.1 / serverDt
-
 serverFrameTarget = 0
-
-correction = false
-
 
 renderFrame = 0
 
-
-seq = 0
 
 update = (dt) ->
   if dt
@@ -53,40 +46,28 @@ update = (dt) ->
   return unless lerpA and lerpB
 
   dtInFrames = dt / serverDt
-
   if Math.abs(serverFrame - serverFrameTarget) > 1
-    correction = true
     if serverFrameTarget < serverFrame
-      dtInFrames *= 0.9
+      serverFrame += dtInFrames * 0.9
     else if serverFrameTarget > serverFrame
-      dtInFrames *= 1.1
-  else
-    correction = false
+      serverFrame += dtInFrames * 1.1
 
   serverFrameTarget += dt / serverDt
-  serverFrame += dtInFrames
 
-  # Render frame is 100ms behind
+  # Render frame is ~100ms behind
   renderFrame = serverFrame - renderFramesAhead
 
   while renderFrame > lerpB.f
     if pendingUpdates.length == 0
+      # Out of data. Pause simulation.
       renderFrame = lerpB.f
       serverFrame = lerpB.f + renderFramesAhead
-
-      seq = (seq + 1) % 5
-      #console.log 'out of data'
-      #console.log lerpA.f, lerpB.f, serverFrame, Math.floor(serverFrame - 0.1/serverDt)
     else
       lerpA = lerpB
       lerpB = pendingUpdates.shift()
 
       delete entities[id] for id in lerpA.remove if lerpA.remove
       entities[id] = e for id, e of lerpA.add if lerpA.add
-
-
-  #console.log lerpA.f, lerpB.f, Math.floor renderFrame if Math.random() < 0.01
-
 
   lerpPoint = Math.max 0, (renderFrame - lerpA.f) / (lerpB.f - lerpA.f)
 
@@ -100,6 +81,8 @@ update = (dt) ->
     e.y = v.lerp2 d1.y, d2.y, lerpPoint
 
 
+  # Update the local player
+
   if avatar
     if !locked
       avatar.dx = 2 * Math.sin Date.now()/1000
@@ -110,10 +93,8 @@ update = (dt) ->
       avatar.y += avatar.dy
       avatar.dx = avatar.dy = 0
 
-      avatar.x = v.clamp avatar.x, 150, canvas.width-150
-      avatar.y = v.clamp avatar.y, 150, canvas.height-150
-      #avatar.x = v.clamp avatar.x, 0, canvas.width
-      #avatar.y = v.clamp avatar.y, 0, canvas.height
+      avatar.x = v.clamp avatar.x, 0, canvas.width
+      avatar.y = v.clamp avatar.y, 0, canvas.height
       avatar.dirty = true
 
 
@@ -147,31 +128,13 @@ draw = ->
   else
     ctx.fillStyle = 'white'
     ctx.fillRect 0, 0, canvas.width, canvas.height
-
-  ctx.fillStyle = 'blue'
-  ctx.fillRect seq * 50, 500, 50, 20
-  if lastReceivedUpdate
-    ctx.fillStyle = 'black'
-    #behind = (lastReceivedUpdate.f - lerpA.f) * serverDt
-    #behind = (lastReceivedUpdate.f - lerpA.f) * serverDt
-    behind = (lastReceivedUpdate.f - renderFrame) * serverDt
-    #behind = (serverFrameTarget - serverFrame) * serverDt
-    ctx.fillRect 100, 200, behind * 1000, 20
-    ctx.strokeStyle = 'red'
-    ctx.strokeRect 100, 200, 100, 20
-    ctx.fillText "#{Math.floor (1000 * behind)} ms", 200, 190
-    ctx.fillText "f #{pendingUpdates.length}", 200, 160
-
-  if correction
-    ctx.fillStyle = 'red'
-    ctx.fillRect 0,300,40,40
-
+  
 raf = window.requestAnimationFrame or window.mozRequestAnimationFrame or
         window.webkitRequestAnimationFrame or window.msRequestAnimationFrame
 
 oldT = 0
 frame = (t) ->
-  t = Date.now() # ... the high performance timer gets clock skew.
+  t = Date.now()
   t /= 1000 # in seconds please.
   update t-oldT
   oldT = t
@@ -216,9 +179,6 @@ ws.onmessage = (msg) ->
       else
         lerpB = lastReceivedUpdate
 
-      #if msg.f > serverFrame
-      #  console.log 'catching up'
-
       serverFrameTarget = msg.f
     else
       console.log msg
@@ -237,6 +197,8 @@ canvas.addEventListener 'click', lockPointer = ->
 document.addEventListener 'keydown', (e) ->
   if e.keyCode is 192
     drawShapes = !drawShapes
+  if e.keyCode is 'S'.charCodeAt 0
+    ws.send JSON.stringify {t:'s'}
 
 document.addEventListener 'webkitpointerlockchange', ->
   if document.webkitPointerLockElement is canvas

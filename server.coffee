@@ -1,33 +1,60 @@
 http = require 'http'
 express = require 'express'
+fs = require 'fs'
+v = require './vect'
 
 {BBTree, BB} = require './bbtree'
+Entity = require './entity'
 
-app = express()
-server = http.createServer app
-
-app.use express.static("#{__dirname}/")
 port = 8123
 
 # How frequently (in ms) should we advance the world
-dt = 16 / 1000
-snapshotDelay = 3
+{dt, snapshotDelay} = require './misc'
 bytesSent = bytesReceived = 0
 frameCount = 1
+pendingAdds = []
+pendingRemoves = []
+
+
+app = express()
+server = http.createServer app
+app.use express.static("#{__dirname}/")
 
 {Server:WebSocketServer, OPEN:WSOPEN} = require('ws')
 wss = new WebSocketServer {server}
 
-#state = 'menu' # Big button in the middle to start. Other state = 'playing'.
 
-boss = require './boss'
+loadBoss = (filename) ->
+  contents = fs.readFileSync filename, 'utf8'
+  new Function 'room', contents
 
-b = null
+entities = {}
 
-players = {}
-pendingAdds = []
-pendingRemoves = []
-nextId = 1000
+room = new Entity 'room'
+room.room = room
+room.onChildAdded = (e) ->
+  entities[e.id] = e
+  pendingAdds.push e.id
+room.onChildRemoved = (e) ->
+  pendingRemoves.push e.id
+  delete entities[e.id]
+room.players = []
+room.tpos = v.zero
+room.trot = v.forangle 0
+room.width = 1024
+room.height = 768
+
+
+start = ->
+  boss = ->
+  #boss = loadBoss 'boss.js'
+
+  for c in room.children
+    if c.type isnt 'player'
+      c.removeInternal()
+    
+  boss.call room, room
+
 
 send = (c, msg) ->
   msg = JSON.stringify msg
@@ -35,38 +62,31 @@ send = (c, msg) ->
     c.send msg
     bytesSent += msg.length
 
-numUpd = 0
-
 idealTime = Date.now()
 frame = ->
   frameCount++
 
-
-  for c in wss.clients
-    msg = c.buffer.pop()
-    if msg
-      p = c.player
-      p.x = msg.x
-      p.y = msg.y
-      p.dirty = true
-
-
+  room.update()
 
   if frameCount % snapshotDelay is 0
-    #console.log numUpd
-    numUpd = 0
-
+    snapshotCopy = (e) ->
+      data = {}
+      data[k] = e[k] for k in ['x', 'y', 'angle', 'type']
+      data
 
     add = {}
-    add[id] = players[id] for id in pendingAdds
+    add[id] = snapshotCopy entities[id] for id in pendingAdds
 
     for c in wss.clients
       if c.needsSnapshot
-        send c, {t:'s', yourid:c.id, entities:players, f:frameCount}
+        snapshot = {}
+        snapshot[id] = snapshotCopy e for id, e of entities
+
+        send c, {t:'s', yourid:c.id, entities:snapshot, f:frameCount}
         c.needsSnapshot = false
       else
         update = {}
-        update[id] = {x:Math.floor(p.x), y:Math.floor(p.y)} for id, p of players when p.dirty and id isnt c.id
+        update[id] = {x:Math.floor(e.x), y:Math.floor(e.y)} for id, e of entities when e.dirty and id isnt c.id
 
         packet =
           t:'u'
@@ -78,7 +98,7 @@ frame = ->
         send c, packet
 
     pendingAdds.length = pendingRemoves.length = 0
-    p.dirty = false for id, p of players
+    e.dirty = false for id, e of entities
 
   idealTime += dt * 1000
   setTimeout frame, idealTime - Date.now()
@@ -86,14 +106,23 @@ frame = ->
 frame()
 
 wss.on 'connection', (c) ->
-  id = c.id = (nextId++).toString()
-  players[id] = c.player =
-    x: Math.random() * 1024
-    y: Math.random() * 768
-  pendingAdds.push id
-  c.needsSnapshot = true
+  player = room.addEntity 'player'
+  id = c.id = player.id.toString()
+  player.x = Math.random() * 1024
+  player.y = Math.random() * 768
 
-  c.buffer = []
+  room.players.push player
+
+  buffer = []
+
+  player.on 'update', ->
+    msg = buffer.pop()
+    if msg
+      player.x = msg.x
+      player.y = msg.y
+      player.dirty = true
+
+  c.needsSnapshot = true
 
   c.on 'message', (msg) ->
     bytesReceived += msg.length
@@ -105,16 +134,15 @@ wss.on 'connection', (c) ->
     switch msg.t
       when 'p'
         # position update
-        c.buffer.unshift msg
-        c.buffer.length = Math.max c.buffer.length, 5
-
-        numUpd++
+        buffer.unshift msg
+        buffer.length = Math.max buffer.length, 5
+      when 's'
+        start()
       else
         console.log msg
 
   c.on 'close', ->
-    delete players[id]
-    pendingRemoves.push id
+    player.remove = true
 
 setInterval ->
     console.log "TX: #{bytesSent/5}  RX: #{bytesReceived/5}"
