@@ -34,7 +34,7 @@ locked = false
 
 fps = 0
 serverFrame = 0
-renderFramesAhead = 0.05 / serverDt
+renderFramesAhead = 0.1 / serverDt
 
 serverFrameTarget = 0
 
@@ -140,12 +140,12 @@ draw = ->
     ctx.textAlign = 'end'
     ctx.fillText Math.floor(10*fps)/10, 140, 80
 
-    #ctx.fillStyle = 'red'
-    #ctx.fillRect seq * 100, 0, 100, 20
   else
     ctx.fillStyle = 'white'
     ctx.fillRect 0, 0, canvas.width, canvas.height
 
+  ctx.fillStyle = 'blue'
+  ctx.fillRect seq * 50, 500, 50, 20
   if lastReceivedUpdate
     ctx.fillStyle = 'black'
     #behind = (lastReceivedUpdate.f - lerpA.f) * serverDt
@@ -160,7 +160,7 @@ draw = ->
 
   if correction
     ctx.fillStyle = 'red'
-    ctx.fillRect 0,0,40,40
+    ctx.fillRect 0,300,40,40
 
 raf = window.requestAnimationFrame or window.mozRequestAnimationFrame or
         window.webkitRequestAnimationFrame or window.msRequestAnimationFrame
