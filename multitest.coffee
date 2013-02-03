@@ -54,7 +54,7 @@ update = (dt) ->
 
   dtInFrames = dt / serverDt
 
-  if Math.abs(serverFrame - serverFrameTarget) > 2
+  if Math.abs(serverFrame - serverFrameTarget) > 1
     correction = true
     if serverFrameTarget < serverFrame
       dtInFrames *= 0.9
@@ -71,8 +71,8 @@ update = (dt) ->
 
   while renderFrame > lerpB.f
     if pendingUpdates.length == 0
-      serverFrame = lerpB.f + renderFramesAhead
       renderFrame = lerpB.f
+      serverFrame = lerpB.f + renderFramesAhead
 
       seq = (seq + 1) % 5
       #console.log 'out of data'
@@ -116,12 +116,16 @@ update = (dt) ->
       #avatar.y = v.clamp avatar.y, 0, canvas.height
       avatar.dirty = true
 
-    if avatar.dirty
-      ws.send JSON.stringify
-        t:'p'
-        x:Math.floor avatar.x
-        y:Math.floor avatar.y
-      avatar.dirty = false
+
+setInterval ->
+  if avatar?.dirty
+    ws.send JSON.stringify
+      t:'p'
+      x:Math.floor avatar.x
+      y:Math.floor avatar.y
+      f:0.1 * Math.floor renderFrame * 10
+    avatar.dirty = false
+, serverDt
 
 draw = ->
   if entities

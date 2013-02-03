@@ -35,11 +35,28 @@ send = (c, msg) ->
     c.send msg
     bytesSent += msg.length
 
+numUpd = 0
+
 idealTime = Date.now()
 frame = ->
   frameCount++
 
+
+  for c in wss.clients
+    msg = c.buffer.pop()
+    if msg
+      p = c.player
+      p.x = msg.x
+      p.y = msg.y
+      p.dirty = true
+
+
+
   if frameCount % snapshotDelay is 0
+    #console.log numUpd
+    numUpd = 0
+
+
     add = {}
     add[id] = players[id] for id in pendingAdds
 
@@ -70,11 +87,13 @@ frame()
 
 wss.on 'connection', (c) ->
   id = c.id = (nextId++).toString()
-  players[id] =
+  players[id] = c.player =
     x: Math.random() * 1024
     y: Math.random() * 768
   pendingAdds.push id
   c.needsSnapshot = true
+
+  c.buffer = []
 
   c.on 'message', (msg) ->
     bytesReceived += msg.length
@@ -86,9 +105,10 @@ wss.on 'connection', (c) ->
     switch msg.t
       when 'p'
         # position update
-        players[id].x = msg.x
-        players[id].y = msg.y
-        players[id].dirty = true
+        c.buffer.unshift msg
+        c.buffer.length = Math.max c.buffer.length, 5
+
+        numUpd++
       else
         console.log msg
 
