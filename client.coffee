@@ -38,6 +38,61 @@ serverFrameTarget = 0
 
 renderFrame = 0
 
+maxSpeed = 300
+
+updateFns =
+  player: (dt) ->
+    if !locked and this is avatar
+      @dx = 2 * Math.sin Date.now()/1000
+      @dy = 2 * Math.cos Date.now()/1700
+
+    if @dx or @dy
+      d = Math.sqrt @dx*@dx + @dy*@dy
+      if d > 0.0001
+        @angle = t = Math.atan2 @dy, @dx
+        @d = d = Math.min d, maxSpeed * dt
+
+        if this is avatar
+          @prevX = @x
+          @prevY = @y
+          @x += d * Math.cos t
+          @y += d * Math.sin t
+          @x = v.clamp @x, 0, canvas.width
+          @y = v.clamp @y, 0, canvas.height
+
+          @dx *= 0.64
+          @dy *= 0.64
+
+          @dirty = true
+
+drawFns =
+  player: ->
+    ctx.save()
+    ctx.translate @x, @y
+    ctx.rotate @angle
+    m = maxSpeed * 16/1000
+    d = Math.min m, 0.2 * Math.sqrt(@dx * @dx + @dy * @dy)
+    ctx.scale 1+0.5*d/m, 1 - d*0.2/m
+    ctx.beginPath()
+    ctx.arc 0, 0, 10, 0, Math.PI*2
+    ctx.fillStyle = 'blue'
+    ctx.fill()
+    ctx.beginPath()
+    ctx.moveTo 0, 0
+    ctx.lineTo 10, 0
+    ctx.strokeStyle = 'red'
+    ctx.stroke()
+
+    ctx.fillStyle = 'red'
+    for i in [0...@hp]
+      x = Math.cos(i*Math.PI*2/3)*4
+      y = Math.sin(i*Math.PI*2/3)*4
+      ctx.beginPath()
+      ctx.arc x, y, 3, 0, Math.PI*2
+      ctx.fill()
+
+    ctx.restore()
+
 
 update = (dt) ->
   if dt
@@ -57,6 +112,7 @@ update = (dt) ->
   serverFrameTarget += dt / serverDt
 
   # Render frame is ~100ms behind
+  prevRenderFrame = renderFrame
   renderFrame = serverFrame - renderFramesAhead
 
   while renderFrame > lerpB.f
@@ -79,46 +135,30 @@ update = (dt) ->
 
     e = entities[id]
 
+    #console.log d1
     e.x = v.lerp2 d1.x, d2.x, lerpPoint
     e.y = v.lerp2 d1.y, d2.y, lerpPoint
+    #console.log d1.a, d2.a
+
+    if d1.dx?
+      e.dx = v.lerp2 d1.dx, d2.dx, lerpPoint
+      e.dy = v.lerp2 d1.dy, d2.dy, lerpPoint
+    #e.angle = v.lerp2 d1.a, d2.a, lerpPoint
+    #e.d = v.lerp2 d1.d, d2.d, lerpPoint if d1.d?
 
 
-  # Update the local player
+  # Update
+  updateFns[e.type]?.call(e, dt) for id, e of entities
 
-  if avatar
-    if !locked
-      avatar.dx = 2 * Math.sin Date.now()/1000
-      avatar.dy = 2 * Math.cos Date.now()/1700
-
-    if avatar.dx or avatar.dy
-      avatar.x += avatar.dx
-      avatar.y += avatar.dy
-      avatar.dx = avatar.dy = 0
-
-      avatar.x = v.clamp avatar.x, 0, canvas.width
-      avatar.y = v.clamp avatar.y, 0, canvas.height
-      avatar.dirty = true
-
-
-  ###
   if Math.floor(prevRenderFrame) < Math.floor(renderFrame) and avatar?.dirty
     ws.send JSON.stringify
       t:'p'
       x:Math.floor avatar.x
       y:Math.floor avatar.y
+      dx:Math.floor avatar.dx
+      dy:Math.floor avatar.dy
       f:0.1 * Math.floor renderFrame * 10
     avatar.dirty = false
-  ###
-
-setInterval ->
-  if avatar?.dirty
-    ws.send JSON.stringify
-      t:'p'
-      x:Math.floor avatar.x
-      y:Math.floor avatar.y
-      f:0.1 * Math.floor renderFrame * 10
-    avatar.dirty = false
-, serverDt
 
 draw = ->
   if entities
@@ -126,8 +166,11 @@ draw = ->
     ctx.fillRect 0, 0, canvas.width, canvas.height
   
     for id, e of entities
-      ctx.fillStyle = if e is avatar then 'blue' else 'black'
-      ctx.fillRect e.x-5, e.y-5, 10, 10
+      if drawFns[e.type]
+        drawFns[e.type].call e
+      else
+        ctx.fillStyle = if e is avatar then 'blue' else 'black'
+        ctx.fillRect e.x-5, e.y-5, 10, 10
 
     # FPS display
     ctx.fillStyle = 'black'
@@ -162,7 +205,7 @@ ws.onclose = ->
 ws.onmessage = (msg) ->
   msg = JSON.parse msg.data
 
-  copy = (e) -> {x:e.x, y:e.y}
+  copy = (e) -> {x:e.x, y:e.y, dx:e.dx, dy:e.dy}
 
   switch msg.t
     when 's'

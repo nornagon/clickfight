@@ -76,7 +76,7 @@ frame = ->
   if frameCount % snapshotDelay is 0
     snapshotCopy = (e) ->
       data = {}
-      data[k] = e[k] for k in ['x', 'y', 'angle', 'type']
+      data[k] = e[k] for k in ['x', 'y', 'angle', 'type', 'hp']
       data
 
     add = {}
@@ -91,7 +91,12 @@ frame = ->
         c.needsSnapshot = false
       else
         update = {}
-        update[id] = {x:Math.floor(e.x), y:Math.floor(e.y)} for id, e of entities when e.dirty and id isnt c.id
+        for id, e of entities when e.dirty and id isnt c.id
+          update[id] =
+            x:Math.floor e.x
+            y:Math.floor e.y
+            dx:Math.floor e.dx
+            dy:Math.floor e.dy
 
         packet =
           t:'u'
@@ -115,6 +120,7 @@ wss.on 'connection', (c) ->
   id = c.id = player.id.toString()
   player.x = Math.random() * 1024
   player.y = Math.random() * 768
+  player.hp = 3
 
   room.players.push player
 
@@ -126,6 +132,8 @@ wss.on 'connection', (c) ->
       #console.log msg.f
       player.x = msg.x
       player.y = msg.y
+      player.dx = msg.dx
+      player.dy = msg.dy
       player.dirty = true
 
   c.needsSnapshot = true
