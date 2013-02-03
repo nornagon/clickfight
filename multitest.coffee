@@ -133,11 +133,14 @@ draw = ->
 
   if lastReceivedUpdate
     ctx.fillStyle = 'black'
+    #behind = (lastReceivedUpdate.f - lerpA.f) * serverDt
+    #behind = (lastReceivedUpdate.f - lerpA.f) * serverDt
     behind = (lastReceivedUpdate.f - renderFrame) * serverDt
     ctx.fillRect 100, 200, 1000*behind, 20
     ctx.strokeStyle = 'red'
     ctx.strokeRect 100, 200, 100, 20
-    ctx.fillText "behind #{Math.floor (1000 * behind)} ms", 200, 190
+    ctx.fillText "#{Math.floor (1000 * behind)} ms", 200, 190
+    ctx.fillText "f #{pendingUpdates.length}", 200, 160
 
 
 raf = window.requestAnimationFrame or window.mozRequestAnimationFrame or
@@ -193,7 +196,7 @@ ws.onmessage = (msg) ->
       #if msg.f > serverFrame
       #  console.log 'catching up'
 
-      serverFrame = Math.max msg.f, serverFrame
+      serverFrame = Math.min msg.f, serverFrame
     else
       console.log msg
 

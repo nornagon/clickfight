@@ -49,7 +49,7 @@ frame = ->
         c.needsSnapshot = false
       else
         update = {}
-        update[id] = {x:p.x, y:p.y} for id, p of players when p.dirty and id isnt c.id
+        update[id] = {x:Math.floor(p.x), y:Math.floor(p.y)} for id, p of players when p.dirty and id isnt c.id
 
         packet =
           t:'u'
