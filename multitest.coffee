@@ -36,16 +36,12 @@ fps = 0
 serverFrame = 0
 renderFramesAhead = 0.1 / serverDt
 
+
+
+
+renderFrame = 0
+
 seq = 0
-
-cycleUpdates = ->
-  throw new Error 'Ahead of server. NOT OK.' unless pendingUpdates.length
-
-  lerpA = lerpB
-  lerpB = pendingUpdates.shift()
-
-  delete entities[id] for id in lerpA.remove if lerpA.remove
-  entities[id] = e for id, e of lerpA.add if lerpA.add
 
 update = (dt) ->
   if dt
@@ -67,7 +63,12 @@ update = (dt) ->
       #console.log 'out of data'
       #console.log lerpA.f, lerpB.f, serverFrame, Math.floor(serverFrame - 0.1/serverDt)
     else
-      cycleUpdates()
+      lerpA = lerpB
+      lerpB = pendingUpdates.shift()
+
+      delete entities[id] for id in lerpA.remove if lerpA.remove
+      entities[id] = e for id, e of lerpA.add if lerpA.add
+
 
   #console.log lerpA.f, lerpB.f, Math.floor renderFrame if Math.random() < 0.01
 
@@ -129,6 +130,15 @@ draw = ->
   else
     ctx.fillStyle = 'white'
     ctx.fillRect 0, 0, canvas.width, canvas.height
+
+  if lastReceivedUpdate
+    ctx.fillStyle = 'black'
+    behind = (lastReceivedUpdate.f - renderFrame) * serverDt
+    ctx.fillRect 100, 200, 1000*behind, 20
+    ctx.strokeStyle = 'red'
+    ctx.strokeRect 100, 200, 100, 20
+    ctx.fillText "behind #{Math.floor (1000 * behind)} ms", 200, 190
+
 
 raf = window.requestAnimationFrame or window.mozRequestAnimationFrame or
         window.webkitRequestAnimationFrame or window.msRequestAnimationFrame
