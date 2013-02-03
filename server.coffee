@@ -44,6 +44,7 @@ room.trot = v.forangle 0
 room.width = 1024
 room.height = 768
 
+blip = room.addEntity 'player'
 
 start = ->
   boss = ->
@@ -65,6 +66,10 @@ send = (c, msg) ->
 idealTime = Date.now()
 frame = ->
   frameCount++
+
+  blip.x = 300 + 250 * Math.sin idealTime/1000
+  blip.y = 300 + 250 * Math.cos idealTime/1000
+  blip.dirty = true
 
   room.update()
 
@@ -118,6 +123,7 @@ wss.on 'connection', (c) ->
   player.on 'update', ->
     msg = buffer.pop()
     if msg
+      #console.log msg.f
       player.x = msg.x
       player.y = msg.y
       player.dirty = true

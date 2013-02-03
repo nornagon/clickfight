@@ -48,9 +48,11 @@ update = (dt) ->
   dtInFrames = dt / serverDt
   if Math.abs(serverFrame - serverFrameTarget) > 1
     if serverFrameTarget < serverFrame
-      serverFrame += dtInFrames * 0.9
-    else if serverFrameTarget > serverFrame
-      serverFrame += dtInFrames * 1.1
+      dtInFrames *= 0.9
+    else
+      dtInFrames *= 1.1
+
+  serverFrame += dtInFrames
 
   serverFrameTarget += dt / serverDt
 
@@ -97,6 +99,16 @@ update = (dt) ->
       avatar.y = v.clamp avatar.y, 0, canvas.height
       avatar.dirty = true
 
+
+  ###
+  if Math.floor(prevRenderFrame) < Math.floor(renderFrame) and avatar?.dirty
+    ws.send JSON.stringify
+      t:'p'
+      x:Math.floor avatar.x
+      y:Math.floor avatar.y
+      f:0.1 * Math.floor renderFrame * 10
+    avatar.dirty = false
+  ###
 
 setInterval ->
   if avatar?.dirty
