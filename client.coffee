@@ -181,10 +181,10 @@ draw = ->
 
     # FPS display
     ctx.fillStyle = 'black'
-    #ctx.font = "20px sans-serif"
-    #ctx.textAlign = 'start'
+    ctx.font = "20px sans-serif"
+    ctx.textAlign = 'start'
     ctx.fillText "FPS:", 30, 80
-    #ctx.textAlign = 'end'
+    ctx.textAlign = 'end'
     ctx.fillText Math.floor(10*fps)/10, 140, 80
 
   else
@@ -192,6 +192,7 @@ draw = ->
     ctx.fillRect 0, 0, canvas.width, canvas.height
 
 
+  ctx.textAlign = 'start'
   for k,cs of chars
     c.draw() for c in cs
   
@@ -329,8 +330,9 @@ canvas.addEventListener 'click', lockPointer = ->
 document.addEventListener 'keydown', (e) ->
   if e.keyCode is 192
     drawShapes = !drawShapes
-  if e.keyCode is 'S'.charCodeAt 0
+  if e.keyCode is 187 # '=' key
     ws.send JSON.stringify {t:'s'}
+  console.log e.keyCode
 
 document.addEventListener 'webkitpointerlockchange', ->
   if document.webkitPointerLockElement is canvas

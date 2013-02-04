@@ -27,6 +27,7 @@ module.exports = class Entity
     e.parent = @
     @room.onChildAdded e
     e
+  spawn: (type) -> @addEntity type # alias for marc.
 
   each: (fn) ->
     fn(@)

@@ -1,4 +1,4 @@
-#v = require './vect'
+v = require './vect'
 min = Math.min
 max = Math.max
 

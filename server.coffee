@@ -2,6 +2,7 @@ http = require 'http'
 express = require 'express'
 fs = require 'fs'
 v = require './vect'
+vm = require 'vm'
 
 {BBTree, BB} = require './bbtree'
 Entity = require './entity'
@@ -26,7 +27,7 @@ wss = new WebSocketServer {server}
 
 loadBoss = (filename) ->
   contents = fs.readFileSync filename, 'utf8'
-  new Function 'room', contents
+  vm.createScript "(function(){ #{contents} }).call(room);", filename
 
 entities = {}
 
@@ -44,17 +45,26 @@ room.trot = v.forangle 0
 room.width = 1024
 room.height = 768
 
-blip = room.addEntity 'player'
-
 start = ->
-  boss = ->
-  #boss = loadBoss 'boss.js'
+  console.log 'start'
+  #boss = ->
+  boss = loadBoss 'boss.js'
 
   for c in room.children
     if c.type isnt 'player'
       c.removeInternal()
-    
-  boss.call room, room
+   
+  shapes = require './shapes'
+  boss.runInNewContext
+    room:room
+    console:console
+    v:v
+    width:room.width
+    height:room.height
+    circle:shapes.circle
+    rect:shapes.rect
+
+  #boss.call room, room
 
 
 send = (c, msg) ->
@@ -66,10 +76,6 @@ send = (c, msg) ->
 idealTime = Date.now()
 frame = ->
   frameCount++
-
-  blip.x = 300 + 250 * Math.sin idealTime/1000
-  blip.y = 300 + 250 * Math.cos idealTime/1000
-  blip.dirty = true
 
   room.update()
 
