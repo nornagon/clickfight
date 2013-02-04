@@ -93,6 +93,7 @@ drawFns =
 
     ctx.restore()
 
+send = (msg) -> ws.send JSON.stringify msg
 
 update = (dt) ->
   if dt
@@ -150,6 +151,12 @@ update = (dt) ->
   # Update
   updateFns[e.type]?.call(e, dt) for id, e of entities
 
+  # Update all the text
+  for k, cs of chars
+    c.update dt for c in cs
+    chars[k] = (c for c in cs when not c.dead)
+
+
   if Math.floor(prevRenderFrame) < Math.floor(renderFrame) and avatar?.dirty
     ws.send JSON.stringify
       t:'p'
@@ -174,15 +181,19 @@ draw = ->
 
     # FPS display
     ctx.fillStyle = 'black'
-    ctx.font = "20px sans-serif"
-    ctx.textAlign = 'start'
+    #ctx.font = "20px sans-serif"
+    #ctx.textAlign = 'start'
     ctx.fillText "FPS:", 30, 80
-    ctx.textAlign = 'end'
+    #ctx.textAlign = 'end'
     ctx.fillText Math.floor(10*fps)/10, 140, 80
 
   else
     ctx.fillStyle = 'white'
     ctx.fillRect 0, 0, canvas.width, canvas.height
+
+
+  for k,cs of chars
+    c.draw() for c in cs
   
 raf = window.requestAnimationFrame or window.mozRequestAnimationFrame or
         window.webkitRequestAnimationFrame or window.msRequestAnimationFrame
@@ -235,8 +246,74 @@ ws.onmessage = (msg) ->
         lerpB = lastReceivedUpdate
 
       serverFrameTarget = msg.f
+    when 'say'
+      playerTyped msg.p, msg.x, msg.y, msg.c
+    when 'backspace'
+      playerBackspaced msg.p
     else
       console.log msg
+
+FONT = 'bold 14px helvetica'
+class Char
+  constructor: (@x, @y, @c, @life=6+Math.random()*0.5) ->
+    ctx.font = FONT
+    @width = ctx.measureText(@c).width
+    @maxLife = @life
+  update: (dt) ->
+    @life -= dt
+    if @life <= 0
+      @dead = yes
+  draw: ->
+    fadeIn = if (@maxLife-@life) < 0.2
+      (@maxLife-@life) / 0.2
+    else
+      1
+    fadeOut = if @life < 0.2
+      @life/0.2
+    else
+      1
+    ctx.font = FONT
+    ctx.fillStyle = 'black'
+    ctx.globalAlpha = Math.min fadeOut, fadeIn
+    ctx.fillText @c, @x, @y + (1-fadeIn)*20
+    ctx.globalAlpha = 1
+chars = {}
+
+playerTyped = (playerId, x, y, c) ->
+  (chars[playerId] ?= []).push char = new Char x, y, c
+  char
+playerBackspaced = (playerId) ->
+  if chars[playerId]?.length
+    chars[playerId].pop()
+
+whereWasILastSpeaking = null
+lastAdvance = 0
+MOVE_THRESHOLD = 40
+dist = ({x:x0,y:y0}, {x:x1,y:y1}) -> dx = x0-x1; dy = y0-y1; Math.sqrt dx*dx + dy*dy
+sayChars = (cs) ->
+  moved = (!whereWasILastSpeaking or dist({x:avatar.x,y:avatar.y}, whereWasILastSpeaking) > MOVE_THRESHOLD)
+  if moved
+    whereWasILastSpeaking = {x:avatar.x, y:avatar.y}
+
+  if chars[avatar.id]?.length is 0 or moved
+    lastAdvance = 0
+
+  x = whereWasILastSpeaking.x - 40 + lastAdvance
+  y = whereWasILastSpeaking.y - 40
+
+  c = playerTyped avatar.id, x, y, cs
+  send {t:'say',p:avatar.id,x,y,c:cs}
+  lastAdvance += c.width
+
+window.onkeypress = (e) ->
+  sayChars String.fromCharCode e.charCode
+window.onkeydown = (e) ->
+  if e.which is 8
+    if chars[avatar.id].length
+      c = playerBackspaced avatar.id
+      send {t:'backspace',p:avatar.id}
+      lastAdvance -= c.width
+    e.preventDefault()
 
 mousemove = (e) ->
   return unless avatar

@@ -152,6 +152,9 @@ wss.on 'connection', (c) ->
         buffer.length = Math.max buffer.length, 5
       when 's'
         start()
+      when 'say', 'backspace'
+        for client in wss.clients when client isnt c
+          client.send JSON.stringify msg
       else
         console.log msg
 
