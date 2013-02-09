@@ -4,6 +4,8 @@ canvas.height = 768
 
 ctx = canvas.getContext '2d'
 
+graphing = false
+
 ws = new WebSocket "ws://#{window.location.host}"
 #ws.binaryType = 'arraybuffer'
 
@@ -99,6 +101,9 @@ update = (dt) ->
   if dt
     fps = 0.7*fps + 0.3 / dt
 
+  graph 'fps', 1.0/dt, scale:80, type:'positive'
+  graph 'offset', (serverFrame - serverFrameTarget)*5, type:'center', scale:5
+
   return unless lerpA and lerpB
 
   dtInFrames = dt / serverDt
@@ -171,21 +176,13 @@ draw = ->
   if entities
     ctx.fillStyle = 'thistle'
     ctx.fillRect 0, 0, canvas.width, canvas.height
-  
+
     for id, e of entities
       if drawFns[e.type]
         drawFns[e.type].call e
       else
         ctx.fillStyle = if e is avatar then 'blue' else 'black'
         ctx.fillRect e.x-5, e.y-5, 10, 10
-
-    # FPS display
-    ctx.fillStyle = 'black'
-    ctx.font = "20px sans-serif"
-    ctx.textAlign = 'start'
-    ctx.fillText "FPS:", 30, 80
-    ctx.textAlign = 'end'
-    ctx.fillText Math.floor(10*fps)/10, 140, 80
 
   else
     ctx.fillStyle = 'white'
@@ -195,7 +192,11 @@ draw = ->
   ctx.textAlign = 'start'
   for k,cs of chars
     c.draw() for c in cs
-  
+
+  if graphing
+    drawGraphs 10, 10
+    drawHeldGraphs 250, 10
+
 raf = window.requestAnimationFrame or window.mozRequestAnimationFrame or
         window.webkitRequestAnimationFrame or window.msRequestAnimationFrame
 
@@ -238,9 +239,9 @@ ws.onmessage = (msg) ->
       data[id] = copy e for id, e of msg.u # Update
       # & copy in anything else that hasn't been updated
       data[id] = copy e for id, e of lastReceivedUpdate.data when data[id] is undefined and e
- 
+
       lastReceivedUpdate = f:msg.f, data:data, add:msg.a, remove:msg.r
-      
+
       if lerpB
         pendingUpdates.push lastReceivedUpdate
       else
@@ -309,6 +310,10 @@ sayChars = (cs) ->
 window.onkeypress = (e) ->
   sayChars String.fromCharCode e.charCode
 window.onkeydown = (e) ->
+  if e.which is 192
+    graphing = not graphing
+  if graphing and e.which is 'H'.charCodeAt(0)
+    holdAllGraphs()
   if e.which is 8
     if chars[avatar.id].length
       c = playerBackspaced avatar.id
