@@ -40,58 +40,65 @@ renderFrame = 0
 
 maxSpeed = 300
 
-updateFns =
-  player: (dt) ->
-    if !locked and this is avatar
-      @dx = 2 * Math.sin Date.now()/1000
-      @dy = 2 * Math.cos Date.now()/1700
+entityTypes =
+  player:
+    update: (dt) ->
+      if !locked and this is avatar
+        @dx = 2 * Math.sin Date.now()/1000
+        @dy = 2 * Math.cos Date.now()/1700
 
-    if @dx or @dy
-      d = Math.sqrt @dx*@dx + @dy*@dy
-      if d > 0.0001
-        @angle = t = Math.atan2 @dy, @dx
-        @d = d = Math.min d, maxSpeed * dt
+      if @dx or @dy
+        d = Math.sqrt @dx*@dx + @dy*@dy
+        if d > 0.0001
+          @angle = t = Math.atan2 @dy, @dx
+          @d = d = Math.min d, maxSpeed * dt
 
-        if this is avatar
-          @prevX = @x
-          @prevY = @y
-          @x += d * Math.cos t
-          @y += d * Math.sin t
-          @x = v.clamp @x, 0, canvas.width
-          @y = v.clamp @y, 0, canvas.height
+          if this is avatar
+            @prevX = @x
+            @prevY = @y
+            @x += d * Math.cos t
+            @y += d * Math.sin t
+            @x = v.clamp @x, 0, canvas.width
+            @y = v.clamp @y, 0, canvas.height
 
-          @dx *= 0.64
-          @dy *= 0.64
+            @dx *= 0.64
+            @dy *= 0.64
 
-          @dirty = true
+            @dirty = true
 
-drawFns =
-  player: ->
-    ctx.save()
-    ctx.translate @x, @y
-    ctx.rotate @angle
-    m = maxSpeed * 16/1000
-    d = Math.min m, 0.2 * Math.sqrt(@dx * @dx + @dy * @dy)
-    ctx.scale 1+0.5*d/m, 1 - d*0.2/m
-    ctx.beginPath()
-    ctx.arc 0, 0, 10, 0, Math.PI*2
-    ctx.fillStyle = 'blue'
-    ctx.fill()
-    ctx.beginPath()
-    ctx.moveTo 0, 0
-    ctx.lineTo 10, 0
-    ctx.strokeStyle = 'red'
-    ctx.stroke()
-
-    ctx.fillStyle = 'red'
-    for i in [0...@hp]
-      x = Math.cos(i*Math.PI*2/3)*4
-      y = Math.sin(i*Math.PI*2/3)*4
+    draw: ->
+      ctx.save()
+      ctx.translate @x, @y
+      ctx.rotate @angle
+      m = maxSpeed * 16/1000
+      d = Math.min m, 0.2 * Math.sqrt(@dx * @dx + @dy * @dy)
+      ctx.scale 1+0.5*d/m, 1 - d*0.2/m
       ctx.beginPath()
-      ctx.arc x, y, 3, 0, Math.PI*2
+      ctx.arc 0, 0, 10, 0, Math.PI*2
+      ctx.fillStyle = 'blue'
       ctx.fill()
+      ctx.beginPath()
+      ctx.moveTo 0, 0
+      ctx.lineTo 10, 0
+      ctx.strokeStyle = 'red'
+      ctx.stroke()
 
-    ctx.restore()
+      ctx.fillStyle = 'red'
+      for i in [0...@hp]
+        x = Math.cos(i*Math.PI*2/3)*4
+        y = Math.sin(i*Math.PI*2/3)*4
+        ctx.beginPath()
+        ctx.arc x, y, 3, 0, Math.PI*2
+        ctx.fill()
+
+      ctx.restore()
+
+
+injestEntityTypes = (newEts) ->
+  for t, et of newEts
+    if typeof et.draw is 'string'
+      et.draw = eval "(#{et.draw})"
+    entityTypes[t] = et
 
 send = (msg) -> ws.send JSON.stringify msg
 
@@ -128,6 +135,8 @@ update = (dt) ->
       delete entities[id] for id in lerpA.remove if lerpA.remove
       entities[id] = e for id, e of lerpA.add if lerpA.add
 
+      injestEntityTypes lerpB.et if lerpB.et
+
   lerpPoint = Math.max 0, (renderFrame - lerpA.f) / (lerpB.f - lerpA.f)
 
   for id, d1 of lerpA.data when id isnt avatar.id and d1 isnt null
@@ -149,7 +158,7 @@ update = (dt) ->
 
 
   # Update
-  updateFns[e.type]?.call(e, dt) for id, e of entities
+  entityTypes[e.type]?.update?.call(e, dt) for id, e of entities
 
   # Update all the text
   for k, cs of chars
@@ -173,9 +182,9 @@ draw = ->
     ctx.fillRect 0, 0, canvas.width, canvas.height
   
     for id, e of entities
-      if drawFns[e.type]
-        drawFns[e.type].call e
-      else
+      entityTypes[e.type]?.draw?.call(e)
+
+      unless entityTypes[e.type]?.draw
         ctx.fillStyle = if e is avatar then 'blue' else 'black'
         ctx.fillRect e.x-5, e.y-5, 10, 10
 
@@ -221,6 +230,8 @@ ws.onmessage = (msg) ->
 
   switch msg.t
     when 's'
+      console.log msg
+      injestEntityTypes msg.et
       entities = msg.entities
       avatar = entities[msg.yourid]
       avatar.id = msg.yourid
@@ -239,7 +250,12 @@ ws.onmessage = (msg) ->
       # & copy in anything else that hasn't been updated
       data[id] = copy e for id, e of lastReceivedUpdate.data when data[id] is undefined and e
  
-      lastReceivedUpdate = f:msg.f, data:data, add:msg.a, remove:msg.r
+      lastReceivedUpdate =
+        f:msg.f
+        data:data
+        add:msg.a
+        remove:msg.r
+        et:msg.et
       
       if lerpB
         pendingUpdates.push lastReceivedUpdate
@@ -332,7 +348,7 @@ document.addEventListener 'keydown', (e) ->
     drawShapes = !drawShapes
   if e.keyCode is 187 # '=' key
     ws.send JSON.stringify {t:'s'}
-  console.log e.keyCode
+  #console.log e.keyCode
 
 document.addEventListener 'webkitpointerlockchange', ->
   if document.webkitPointerLockElement is canvas

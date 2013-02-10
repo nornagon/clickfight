@@ -1,4 +1,5 @@
-v = require './vect'
+unless window?
+  v = require './vect'
 min = Math.min
 max = Math.max
 
@@ -19,6 +20,10 @@ circleSegmentQuery = (shape, center, r, a, b, info) ->
       return {shape, t, n:v.normalize(v.lerp(a, b, t))}
 
 exports.circle = (x, y, radius) ->
+  throw new error 'need an x' unless typeof x is 'number'
+  throw new error 'need a y' unless typeof y is 'number'
+  throw new error 'need a radius' unless typeof radius is 'number'
+
   c: v(x,y) # center
   tc: null # transformed center
   r: radius # radius
@@ -54,6 +59,8 @@ exports.circle = (x, y, radius) ->
 
   segmentQuery: (a, b) ->
     circleSegmentQuery this, @tc, @r, a, b
+
+  toJSON: -> {@type, @c, @r}
 
 bbContainsVect2 = (l, b, r, t, v) -> l <= v.x && r >= v.x && b <= v.y && t >= v.y
 

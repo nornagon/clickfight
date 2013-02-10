@@ -3,6 +3,8 @@ express = require 'express'
 fs = require 'fs'
 v = require './vect'
 vm = require 'vm'
+shapes = require './shapes'
+uglify = require 'uglify-js'
 
 {BBTree, BB} = require './bbtree'
 Entity = require './entity'
@@ -45,6 +47,9 @@ room.trot = v.forangle 0
 room.width = 1024
 room.height = 768
 
+entityTypes = {}
+entityTypesDirty = true
+
 start = ->
   console.log 'start'
   #boss = ->
@@ -54,7 +59,6 @@ start = ->
     if c.type isnt 'player'
       c.removeInternal()
    
-  shapes = require './shapes'
   boss.runInNewContext
     room:room
     console:console
@@ -64,11 +68,19 @@ start = ->
     circle:shapes.circle
     rect:shapes.rect
 
+  entityTypes = room.entities
+  entityTypesDirty = true
   #boss.call room, room
 
 
 send = (c, msg) ->
-  msg = JSON.stringify msg
+  msg = JSON.stringify msg, (key, val) ->
+    if typeof val is 'function'
+      #(uglify.minify "(#{val.toString()})", fromString:yes).code
+      # ^ This isn't working right - I think its minifying the entire expression as a no-op.
+      val.toString()
+    else
+      val
   if c.readyState is WSOPEN
     c.send msg
     bytesSent += msg.length
@@ -82,7 +94,7 @@ frame = ->
   if frameCount % snapshotDelay is 0
     snapshotCopy = (e) ->
       data = {}
-      data[k] = e[k] for k in ['x', 'y', 'angle', 'type', 'hp']
+      data[k] = e[k] for k in ['x', 'y', 'angle', 'type', 'hp'] when e[k]?
       data
 
     add = {}
@@ -93,7 +105,13 @@ frame = ->
         snapshot = {}
         snapshot[id] = snapshotCopy e for id, e of entities
 
-        send c, {t:'s', yourid:c.id, entities:snapshot, f:frameCount}
+        send c,
+          t:'s' # type = snapshot
+          yourid:c.id
+          et:entityTypes
+          entities:snapshot # entities in the world
+          f:frameCount
+
         c.needsSnapshot = false
       else
         update = {}
@@ -105,15 +123,17 @@ frame = ->
             dy:Math.floor e.dy
 
         packet =
-          t:'u'
+          t:'u' # type = update
           u:update
           a:add if pendingAdds.length
           r:pendingRemoves if pendingRemoves.length
           f:frameCount
+          et:entityTypes if entityTypesDirty
 
         send c, packet
 
     pendingAdds.length = pendingRemoves.length = 0
+    entityTypesDirty = false
     e.dirty = false for id, e of entities
 
   idealTime += dt * 1000
