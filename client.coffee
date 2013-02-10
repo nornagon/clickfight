@@ -101,12 +101,9 @@ update = (dt) ->
   if dt
     fps = 0.7*fps + 0.3 / dt
 
-  graph 'fps', 1.0/dt, scale:80, type:'positive'
+  graph 'fps', 1.0 / dt, scale:80, type:'positive'
   graph 'offset', (serverFrame - serverFrameTarget)*5, type:'center', scale:5
 
-  return unless lerpA and lerpB
-
-  dtInFrames = dt / serverDt
   dtSkew = if Math.abs(serverFrame - serverFrameTarget) > 1
     if serverFrameTarget < serverFrame
       0.9
@@ -115,7 +112,11 @@ update = (dt) ->
   else 1
   graph 'dtSkew', dtSkew-1, scale:0.2, type:'center'
 
-  serverFrame += dtInFrames*dtSkew
+  return unless lerpA and lerpB
+
+  dtInFrames = dt / serverDt
+
+  serverFrame += dtInFrames * dtSkew
 
   serverFrameTarget += dtInFrames
 
