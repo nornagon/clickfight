@@ -38,6 +38,8 @@ serverFrame = 0
 renderFramesAhead = 0.1 / serverDt
 serverFrameTarget = 0
 
+lastFrameTime = 0
+
 renderFrame = 0
 
 maxSpeed = 300
@@ -55,9 +57,9 @@ entityTypes =
           @angle = t = Math.atan2 @dy, @dx
           @d = d = Math.min d, maxSpeed * dt
 
+          @prevX = @x
+          @prevY = @y
           if this is avatar
-            @prevX = @x
-            @prevY = @y
             @x += d * Math.cos t
             @y += d * Math.sin t
             @x = v.clamp @x, 0, canvas.width
@@ -67,6 +69,7 @@ entityTypes =
             @dy *= 0.64
 
             @dirty = true
+
 
     draw: ->
       ctx.save()
@@ -95,6 +98,10 @@ entityTypes =
 
       ctx.restore()
 
+      ctx.fillStyle = 'black'
+      ctx.fillRect @x+@dx-5, @y+@dy-5, 10, 10
+
+
 
 injestEntityTypes = (newEts) ->
   for t, et of newEts
@@ -104,19 +111,26 @@ injestEntityTypes = (newEts) ->
 
 send = (msg) -> ws.send JSON.stringify msg
 
+lastUpdateSentAtFrame = 0
+
 update = (dt) ->
   if dt
     fps = 0.7*fps + 0.3 / dt
+  #dt = serverDt
+  lastAvatar = JSON.parse JSON.stringify avatar
+  lastRenderFrame = renderFrame
 
-  graph 'fps', 1.0 / dt, scale:80, type:'positive'
-  graph 'offset', (serverFrame - serverFrameTarget)*5, type:'center', scale:5
+  #graph 'fps', 1.0 / dt, scale:80, type:'positive' if dt
+  graph 'dt', dt * 1000, scale:20, type:'positive' if dt
+  graph 'offset', (serverFrame - serverFrameTarget), type:'center', scale:1
 
-  dtSkew = if Math.abs(serverFrame - serverFrameTarget) > 1
+  dtSkew = if Math.abs(serverFrame - serverFrameTarget) > 0.3
     if serverFrameTarget < serverFrame
       0.9
     else
       1.1
   else 1
+  #dtSkew = 1
   graph 'dtSkew', dtSkew-1, scale:0.2, type:'center'
 
   return unless lerpA and lerpB
@@ -131,6 +145,8 @@ update = (dt) ->
   prevRenderFrame = renderFrame
   renderFrame = serverFrame - renderFramesAhead
 
+  graph "lerpB x #{id}", e.x % 20, type:'positive', scale:20 for id, e of lerpB.data when e?.x? and entities[id]?.type is 'player'
+
   while renderFrame > lerpB.f
     if pendingUpdates.length == 0
       # Out of data. Pause simulation.
@@ -139,9 +155,15 @@ update = (dt) ->
     else
       lerpA = lerpB
       lerpB = pendingUpdates.shift()
+      graph 'lerpA data', lerpB.data[1001].x - lerpA.data[1001].x, type:'center', scale:10
+      #if lerpB
+      #  graph "lerpA dx #{id}", e.dx, type:'center', scale:2 for id, e of lerpB.data when id not in [avatar.id, 1001] and e.dx?
 
       delete entities[id] for id in lerpA.remove if lerpA.remove
-      entities[id] = e for id, e of lerpA.add if lerpA.add
+      if lerpA.add
+        for id, e of lerpA.add
+          entities[id] = e
+          e.id = id
 
       injestEntityTypes lerpB.et if lerpB.et
 
@@ -154,8 +176,14 @@ update = (dt) ->
     e = entities[id]
 
     #console.log d1
+
+    oldx = e.x
     e.x = v.lerp2 d1.x, d2.x, lerpPoint
     e.y = v.lerp2 d1.y, d2.y, lerpPoint
+
+    graph "#{id}", e.x - oldx, type:'center', scale:5
+
+    #graph 'd1.x change', d2.x - d1.x, type:'center', scale:10
     #console.log d1.a, d2.a
 
     if d1.dx?
@@ -164,6 +192,7 @@ update = (dt) ->
     #e.angle = v.lerp2 d1.a, d2.a, lerpPoint
     #e.d = v.lerp2 d1.d, d2.d, lerpPoint if d1.d?
 
+      graph "e #{id} x", e.x % 20, type:'positive', scale:20
 
   # Update
   entityTypes[e.type]?.update?.call(e, dt) for id, e of entities
@@ -174,15 +203,29 @@ update = (dt) ->
     chars[k] = (c for c in cs when not c.dead)
 
 
-  if Math.floor(prevRenderFrame) < Math.floor(renderFrame) and avatar?.dirty
+  if lastUpdateSentAtFrame < renderFrame - 1 # and avatar?.dirty
+    actualFrameToSend = Math.floor renderFrame
+    throw ':(' unless lastRenderFrame < actualFrameToSend
+    d = renderFrame - lastRenderFrame
+    lerpPoint = (actualFrameToSend - lastRenderFrame) / d
+    lerpedAvatar =
+      x: v.lerp2 lastAvatar.x, avatar.x, lerpPoint
+      y: v.lerp2 lastAvatar.y, avatar.y, lerpPoint
+      dx: v.lerp2 lastAvatar.dx, avatar.dx, lerpPoint
+      dy: v.lerp2 lastAvatar.dy, avatar.dy, lerpPoint
+
+    #graph 'lerpedAvatar dx', lerpedAvatar.dx, type:'center', scale:2
+    #graph 'avatar dx', avatar.dx, type:'center', scale:2
+    graph 'avatar x', lerpedAvatar.x%20, type:'positive', scale:20
+
     ws.send JSON.stringify
       t:'p'
-      x:Math.floor avatar.x
-      y:Math.floor avatar.y
-      dx:Math.floor avatar.dx
-      dy:Math.floor avatar.dy
-      f:0.1 * Math.floor renderFrame * 10
+      x:+lerpedAvatar.x.toFixed 2
+      y:+lerpedAvatar.y.toFixed 2
+      dx:+lerpedAvatar.dx.toFixed 2
+      dy:+lerpedAvatar.dy.toFixed 2
     avatar.dirty = false
+    lastUpdateSentAtFrame = actualFrameToSend
 
 draw = ->
   if entities
@@ -213,8 +256,8 @@ raf = window.requestAnimationFrame or window.mozRequestAnimationFrame or
 
 oldT = 0
 frame = (t) ->
-  t = Date.now()
   t /= 1000 # in seconds please.
+  lastFrameTime = t
   update t-oldT
   oldT = t
   draw()
@@ -265,7 +308,9 @@ ws.onmessage = (msg) ->
       else
         lerpB = lastReceivedUpdate
 
-      serverFrameTarget = msg.f
+      frameDelay = (performance.now()/1000 - lastFrameTime) / serverDt
+      #graph 'frameDelay', frameDelay, {type:'positive', scale:2}
+      serverFrameTarget = msg.f - frameDelay
       markGraph 'offset'
     when 'say'
       playerTyped msg.p, msg.x, msg.y, msg.c

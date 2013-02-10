@@ -111,8 +111,8 @@ module.exports = class Entity
   trigger: (event, args...) ->
     for handler in @handlers['always']?[event] ? []
       handler.call @, args...
-    for handler in @handlers[@currentPhase()]?[event] ? []
-      handler.call @, args...
+    #for handler in @handlers[@currentPhase()]?[event] ? []
+    #  handler.call @, args...
     return
 
   on: (name, fn) ->

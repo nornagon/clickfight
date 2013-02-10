@@ -50,6 +50,12 @@ room.height = 768
 entityTypes = {}
 entityTypesDirty = true
 
+thing = room.addEntity 'thing'
+thing.on 'update', ->
+  @x = room.width/2 + Math.sin(frameCount/100)*250
+  @y = room.height/2 + Math.cos(frameCount/100)*250
+  @dirty = true
+
 start = ->
   console.log 'start'
   #boss = ->
@@ -117,10 +123,10 @@ frame = ->
         update = {}
         for id, e of entities when e.dirty and id isnt c.id
           update[id] =
-            x:Math.floor e.x
-            y:Math.floor e.y
-            dx:Math.floor e.dx
-            dy:Math.floor e.dy
+            x:e.x
+            y:e.y
+            dx:e.dx
+            dy:e.dy
 
         packet =
           t:'u' # type = update
@@ -153,6 +159,7 @@ wss.on 'connection', (c) ->
   buffer = []
 
   player.on 'update', ->
+    #console.log buffer.length
     msg = buffer.pop()
     if msg
       #console.log msg.f
@@ -175,7 +182,9 @@ wss.on 'connection', (c) ->
       when 'p'
         # position update
         buffer.unshift msg
-        buffer.length = Math.max buffer.length, 5
+        #console.log 'packet', buffer.length
+        #console.log "trunc #{buffer.length - 5}" if buffer.length > 5
+        buffer.length = Math.min buffer.length, 5
       when 's'
         start()
       when 'say', 'backspace'
