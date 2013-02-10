@@ -107,15 +107,17 @@ update = (dt) ->
   return unless lerpA and lerpB
 
   dtInFrames = dt / serverDt
-  if Math.abs(serverFrame - serverFrameTarget) > 1
+  dtSkew = if Math.abs(serverFrame - serverFrameTarget) > 1
     if serverFrameTarget < serverFrame
-      dtInFrames *= 0.9
+      0.9
     else
-      dtInFrames *= 1.1
+      1.1
+  else 1
+  graph 'dtSkew', dtSkew-1, scale:0.2, type:'center'
 
-  serverFrame += dtInFrames
+  serverFrame += dtInFrames*dtSkew
 
-  serverFrameTarget += dt / serverDt
+  serverFrameTarget += dtInFrames
 
   # Render frame is ~100ms behind
   prevRenderFrame = renderFrame
@@ -195,7 +197,6 @@ draw = ->
 
   if graphing
     drawGraphs 10, 10
-    drawHeldGraphs 250, 10
 
 raf = window.requestAnimationFrame or window.mozRequestAnimationFrame or
         window.webkitRequestAnimationFrame or window.msRequestAnimationFrame
@@ -248,6 +249,7 @@ ws.onmessage = (msg) ->
         lerpB = lastReceivedUpdate
 
       serverFrameTarget = msg.f
+      markGraph 'offset'
     when 'say'
       playerTyped msg.p, msg.x, msg.y, msg.c
     when 'backspace'
